@@ -1,0 +1,30 @@
+name: Update Flipper Center (Back)
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  update-center:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Flipper Center
+        uses: actions/checkout@v4
+        with:
+          repository: fouuuadi/Flipper_Center
+          token: ${{ secrets.CENTER_TOKEN }}
+          submodules: true
+
+      - name: Update back submodule
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+
+          git submodule update --remote back
+
+          git add back
+          git commit -m "Auto update back from ${GITHUB_REPOSITORY}@${GITHUB_SHA}" || echo "No changes"
+
+          git push https://x-access-token:${{ secrets.CENTER_TOKEN }}@github.com/fouuuadi/Flipper_Center.git main
