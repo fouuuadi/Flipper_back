@@ -1,0 +1,42 @@
+# ===== Go =====
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+bin/
+dist/
+
+# Go workspace / cache
+*.log
+*.tmp
+tmp/
+.coverage/
+coverage.out
+
+# Go build cache (rarement commité)
+.gocache/
+
+# ===== Env / Secrets =====
+.env
+note.md
+
+# ===== Docker =====
+# (Optionnel : garde si tu crées des overrides locaux)
+docker-compose.override.yml
+
+# ===== IDE / OS =====
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Zed
+.zed/
+
+# ===== CI artifacts =====
+*.tar.gz
+*.zip
