@@ -12,6 +12,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
 	"github.com/fouuuadi/Flipper_back/internal/infrastructure/db"
+	"github.com/fouuuadi/Flipper_back/internal/transport/ws"
 
 )
 
@@ -40,6 +41,8 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, "OK")
 	})
+
+	http.HandleFunc("/ws", ws.ServeWS)
 
 	fmt.Println("Server started on http://localhost" + port)
 
