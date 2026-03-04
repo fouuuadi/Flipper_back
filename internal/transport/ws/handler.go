@@ -1,3 +1,5 @@
+// handler.go implémente le gestionnaire HTTP pour les connexions WebSocket, permettant aux clients de se connecter, d'envoyer des messages et de recevoir des diffusions de messages de la part du hub.
+
 package ws
 
 import (
@@ -15,34 +17,46 @@ type Message struct {
 	Timestamp int64           `json:"timestamp,omitempty"`
 }
 
-// Upgrader Gorilla: convertit HTTP -> WebSocket
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
+type Handler struct {
+	Hub      *Hub
+	Upgrader websocket.Upgrader
+	Logger   *log.Logger
 }
 
-// ServeWS gère: upgrade + logs + echo JSON
-func ServeWS(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
+func NewHandler(hub *Hub, logger *log.Logger) *Handler {
+	return &Handler{
+		Hub: hub,
+		Upgrader: websocket.Upgrader{
+			CheckOrigin: func(r *http.Request) bool { return true },
+		},
+		Logger: logger,
+	}
+}
+
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	conn, err := h.Upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		log.Printf("[ws] upgrade error: %v", err)
+		h.printf("[ws] upgrade error: %v", err)
 		return
 	}
+
+	h.Hub.Add(conn)
+
 	defer func() {
+		h.Hub.Remove(conn)
 		_ = conn.Close()
-		log.Printf("[ws] disconnected: remote=%s", r.RemoteAddr)
+		h.printf("[ws] disconnected: remote=%s (clients=%d)", r.RemoteAddr, h.Hub.Count())
 	}()
 
-	log.Printf("[ws] connected: remote=%s", r.RemoteAddr)
+	h.printf("[ws] connected: remote=%s (clients=%d)", r.RemoteAddr, h.Hub.Count())
 
 	for {
 		msgType, data, err := conn.ReadMessage()
 		if err != nil {
-			log.Printf("[ws] read error: %v", err)
+			h.printf("[ws] read error: %v", err)
 			return
 		}
-
-		log.Printf("[ws] received %d bytes", len(data))
-
+		h.printf("[ws] received %d bytes", len(data))
 
 		var incoming Message
 		if err := json.Unmarshal(data, &incoming); err == nil {
@@ -50,17 +64,17 @@ func ServeWS(w http.ResponseWriter, r *http.Request) {
 				incoming.Timestamp = time.Now().UnixMilli()
 			}
 			out, _ := json.Marshal(incoming)
-			if err := conn.WriteMessage(msgType, out); err != nil {
-				log.Printf("[ws] write error: %v", err)
-				return
-			}
+			h.Hub.Broadcast(msgType, out)
 			continue
 		}
 
-		// Fallback: echo brut
-		if err := conn.WriteMessage(msgType, data); err != nil {
-			log.Printf("[ws] write error: %v", err)
-			return
-		}
+		h.Hub.Broadcast(msgType, data)
 	}
+}
+
+func (h *Handler) printf(format string, args ...any) {
+	if h.Logger == nil {
+		return
+	}
+	h.Logger.Printf(format, args...)
 }
