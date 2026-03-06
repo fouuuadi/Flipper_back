@@ -10,7 +10,9 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
+
 	"github.com/fouuuadi/Flipper_back/internal/infrastructure/db"
+	"github.com/fouuuadi/Flipper_back/internal/transport/router"
 	"github.com/fouuuadi/Flipper_back/internal/transport/ws"
 
 )
@@ -32,22 +34,21 @@ func main() {
 		port = ":8080"
 	}
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request){
-		fmt.Fprintln(w, "Flipper backend running")
-	})
+	logger := log.Default()
+	mux := http.NewServeMux()
 
-	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		fmt.Fprintln(w, "OK")
-	})
-
+	// Deps
 	wsHub := ws.NewHub()
-	wsHandler := ws.NewHandler(wsHub, log.Default())
-	http.Handle("/ws", wsHandler)
+
+	// Register all routes (HTTP + WS)
+	router.Register(mux, router.Deps{
+		Logger: logger,
+		WSHub:  wsHub,
+	})
 
 	fmt.Println("Server started on http://localhost" + port)
 
-	if err := http.ListenAndServe(port, nil); err != nil {
+	if err := http.ListenAndServe(port, mux); err != nil {
 		panic(err)
 	}
 }
