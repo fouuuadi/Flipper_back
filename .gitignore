@@ -23,6 +23,7 @@ coverage.out
 # ===== Env / Secrets =====
 .env
 note.md
+point.md
 
 # ===== Docker =====
 # (Optionnel : garde si tu crées des overrides locaux)
