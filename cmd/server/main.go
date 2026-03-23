@@ -1,17 +1,17 @@
 package main
 
 
-//fmt est un utilitaire pour afficher du text
-// net/http est un bibliothèque standard pour créer un serveur Http
 import (
 	"fmt"
 	"net/http"
 	"os"
+	"log"
 
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/joho/godotenv"
 	"github.com/fouuuadi/Flipper_back/internal/infrastructure/db"
+	"github.com/fouuuadi/Flipper_back/internal/transport/ws"
 
 )
 
@@ -40,6 +40,10 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintln(w, "OK")
 	})
+
+	wsHub := ws.NewHub()
+	wsHandler := ws.NewHandler(wsHub, log.Default())
+	http.Handle("/ws", wsHandler)
 
 	fmt.Println("Server started on http://localhost" + port)
 
