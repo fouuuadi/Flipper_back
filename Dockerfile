@@ -1,29 +1,14 @@
-# ---- Build stage ----
-FROM golang:1.25.7-alpine3.23 AS builder
+FROM python:3.12-slim
 
 WORKDIR /app
 
-RUN apk add --no-cache git ca-certificates
+RUN apt-get update && apt-get install -y --no-install-recommends wget && rm -rf /var/lib/apt/lists/*
 
-COPY go.mod go.sum ./
-RUN go mod download
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-ARG TARGETOS
-ARG TARGETARCH
-
-RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -o server ./cmd/server
-
-# ---- Run stage ----
-FROM alpine:3.20
-
-WORKDIR /app
-
-RUN apk add --no-cache ca-certificates wget && update-ca-certificates
-
-COPY --from=builder /app/server /app/server
-
 EXPOSE 8080
 
-CMD ["/app/server"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
