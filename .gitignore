@@ -1,24 +1,23 @@
-# ===== Go =====
-# Binaries
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-*.test
-*.out
-bin/
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+*.egg
 dist/
+build/
+.eggs/
 
-# Go workspace / cache
-*.log
-*.tmp
-tmp/
-.coverage/
-coverage.out
+# Virtual environment
+venv/
+.venv/
+env/
 
-# Go build cache (rarement commité)
-.gocache/
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
 
 # ===== Env / Secrets =====
 .env
@@ -26,7 +25,6 @@ note.md
 point.md
 
 # ===== Docker =====
-# (Optionnel : garde si tu crées des overrides locaux)
 docker-compose.override.yml
 
 # ===== IDE / OS =====
