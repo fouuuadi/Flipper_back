@@ -39,3 +39,6 @@ docker-compose.override.yml
 # ===== CI artifacts =====
 *.tar.gz
 *.zip
+
+
+devopsfouad.md
