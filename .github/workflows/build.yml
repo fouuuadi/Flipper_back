@@ -20,14 +20,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Se connecte au registry GHCR pour pouvoir push l'image
-      - name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Build Docker image
         run: docker build -t ${{ env.IMAGE_NAME }}:${{ github.sha }} -t ${{ env.IMAGE_NAME }}:latest .
 
@@ -37,6 +29,14 @@ jobs:
           image-ref: ${{ env.IMAGE_NAME }}:${{ github.sha }}
           exit-code: "1"
           severity: CRITICAL
+
+      # Login après le build pour ne pas interférer avec le pull Docker Hub
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Push to GHCR
         run: |
