@@ -17,6 +17,11 @@ services:
       - ./db/init:/docker-entrypoint-initdb.d
     networks:
       - flipper_net
+    healthcheck:
+      test: ["CMD", "mysql", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}", "${MYSQL_DATABASE}", "-e", "SELECT 1 FROM players LIMIT 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   phpmyadmin:
     image: phpmyadmin:latest
