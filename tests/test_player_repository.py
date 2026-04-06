@@ -4,7 +4,6 @@ import aiomysql
 from dotenv import load_dotenv
 import os
 from app.infrastructure.db.player_repository import PlayerRepository
-from app.domain.player import Player
 
 
 load_dotenv()
