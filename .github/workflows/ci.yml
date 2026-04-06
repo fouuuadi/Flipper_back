@@ -7,6 +7,9 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Flipper_Center/back
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -26,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: back
+        working-directory: Flipper_Center/back
     env:
       MYSQL_ROOT_PASSWORD: rootpass
       MYSQL_DATABASE: flipper
@@ -82,6 +85,9 @@ jobs:
 
   docker-build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: Flipper_Center/back
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
