@@ -7,9 +7,6 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: Flipper_Center/back
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -27,9 +24,6 @@ jobs:
 
   tests:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: Flipper_Center/back
     env:
       MYSQL_ROOT_PASSWORD: rootpass
       MYSQL_DATABASE: flipper
@@ -60,14 +54,14 @@ jobs:
           python-version: "3.12"
 
       - name: Load environment variables
-        run: cat .env >> $GITHUB_ENV
+        run: cat Flipper_Center/back/.env >> $GITHUB_ENV
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r Flipper_Center/back/requirements.txt
 
       - name: Wait for MySQL
         run: |
-          set -a; source .env; set +a
+          set -a; source Flipper_Center/back/.env; set +a
           for i in {1..30}; do
             mysqladmin ping -h 127.0.0.1 -u $DB_USER -p$DB_PASSWORD && break
             sleep 1
@@ -75,19 +69,16 @@ jobs:
 
       - name: Initialize database
         run: |
-          set -a; source .env; set +a
-          mysql -h 127.0.0.1 -u $DB_USER -p$DB_PASSWORD $DB_NAME < db/init/001_create_players.sql
+          set -a; source Flipper_Center/back/.env; set +a
+          mysql -h 127.0.0.1 -u $DB_USER -p$DB_PASSWORD $DB_NAME < Flipper_Center/back/db/init/001_create_players.sql
 
       - name: Run tests
         env:
           DB_HOST: 127.0.0.1
-        run: pytest tests/ -v
+        run: pytest Flipper_Center/back/tests/ -v
 
   docker-build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: Flipper_Center/back
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
