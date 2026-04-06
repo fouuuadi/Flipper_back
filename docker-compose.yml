@@ -18,7 +18,7 @@ services:
     networks:
       - flipper_net
     healthcheck:
-      test: ["CMD", "mysql", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}", "${MYSQL_DATABASE}", "-e", "SELECT 1 FROM players LIMIT 1"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -47,7 +47,8 @@ services:
     env_file:
       - .env
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "${APP_PORT}:8080"
     networks:
