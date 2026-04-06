@@ -24,7 +24,7 @@ async def db_pool():
         host=host,
         port=int(os.getenv("DB_PORT", 3306)),
         user=os.getenv("DB_USER", "flipper"),
-        password=os.getenv("DB_PASSWORD", "flipperpass"),
+        password=os.getenv("DB_PASSWORD"),
         db=os.getenv("MYSQL_DATABASE", "flipper"),
         minsize=1,
         maxsize=5,
