@@ -24,14 +24,11 @@ jobs:
 
   tests:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: back
     env:
-      MYSQL_ROOT_PASSWORD: rootpass
-      MYSQL_DATABASE: flipper
-      MYSQL_USER: flipper
-      MYSQL_PASSWORD: flipperpass
+      MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
+      MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
+      MYSQL_USER: ${{ secrets.DB_USER }}
+      MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
     services:
       db:
         image: mysql:8.4
@@ -56,28 +53,27 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Load environment variables
-        run: cat .env >> $GITHUB_ENV
-
       - name: Install dependencies
         run: pip install -r requirements.txt
 
       - name: Wait for MySQL
         run: |
-          set -a; source .env; set +a
           for i in {1..30}; do
-            mysqladmin ping -h 127.0.0.1 -u $DB_USER -p$DB_PASSWORD && break
+            mysqladmin ping -h 127.0.0.1 -u ${{ secrets.DB_USER }} -p${{ secrets.DB_PASSWORD }} && break
             sleep 1
           done
 
       - name: Initialize database
         run: |
-          set -a; source .env; set +a
-          mysql -h 127.0.0.1 -u $DB_USER -p$DB_PASSWORD $DB_NAME < db/init/001_create_players.sql
+          mysql -h 127.0.0.1 -u ${{ secrets.DB_USER }} -p${{ secrets.DB_PASSWORD }} ${{ secrets.MYSQL_DATABASE }} < db/init/001_create_players.sql
 
       - name: Run tests
         env:
           DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
         run: pytest tests/ -v
 
   docker-build:
