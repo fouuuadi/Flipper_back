@@ -24,19 +24,14 @@ jobs:
 
   tests:
     runs-on: ubuntu-latest
-    env:
-      MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
-      MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
-      MYSQL_USER: ${{ secrets.DB_USER }}
-      MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
     services:
       db:
         image: mysql:8.4
         env:
-          MYSQL_ROOT_PASSWORD: ${{ env.MYSQL_ROOT_PASSWORD }}
-          MYSQL_DATABASE: ${{ env.MYSQL_DATABASE }}
-          MYSQL_USER: ${{ env.MYSQL_USER }}
-          MYSQL_PASSWORD: ${{ env.MYSQL_PASSWORD }}
+          MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD }}
+          MYSQL_DATABASE: ${{ secrets.MYSQL_DATABASE }}
+          MYSQL_USER: ${{ secrets.DB_USER }}
+          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
         options: >-
           --health-cmd="mysqladmin ping"
           --health-interval=10s
