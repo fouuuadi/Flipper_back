@@ -7,7 +7,6 @@ from app.domain.game import GameMode
 class RoomRepository:
     """
     Repository pour gérer les opérations CRUD sur les rooms.
-    Utilise aiomysql pour les requêtes async.
     """
 
     def __init__(self, pool: aiomysql.Pool):
@@ -17,12 +16,6 @@ class RoomRepository:
     async def create(self, mode: GameMode) -> Room:
         """
         Crée une nouvelle room avec un code unique généré.
-        
-        Args:
-            mode: Mode de jeu (SOLO ou 1v1)
-            
-        Returns:
-            Room créée avec son ID et son code
         """
         code = uuid.uuid4().hex[:6].upper()
         
@@ -41,10 +34,6 @@ class RoomRepository:
     async def get_by_id(self, id: int) -> Room | None:
         """
         Récupère une room par son ID.
-        
-            
-        Returns:
-            Room trouvée ou None
         """
         async with self.pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cursor:
@@ -67,9 +56,6 @@ class RoomRepository:
     async def get_by_code(self, code: str) -> Room | None:
         """
         Récupère une room par son code.
-            
-        Returns:
-            Room trouvée ou None
         """
         async with self.pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cursor:
