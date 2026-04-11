@@ -27,7 +27,6 @@ class PlayerRepository:
                         "INSERT INTO players (pseudo) VALUES (%s)",
                         (pseudo,)
                     )
-                    await conn.commit()
                     player_id = cursor.lastrowid
                     
                     # Récupérer le joueur créé

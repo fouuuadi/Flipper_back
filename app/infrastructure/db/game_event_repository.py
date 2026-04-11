@@ -23,7 +23,6 @@ class GameEventRepository:
                     "INSERT INTO game_events (game_id, type, points) VALUES (%s, %s, %s)",
                     (game_id, type.value, points)
                 )
-                await conn.commit()
                 event_id = cursor.lastrowid
                 
                 return await self.get_by_id(event_id)

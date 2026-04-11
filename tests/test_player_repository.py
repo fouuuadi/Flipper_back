@@ -52,7 +52,6 @@ async def clean_table(db_pool):
     async with db_pool.acquire() as conn:
         async with conn.cursor() as cursor:
             await cursor.execute("DELETE FROM players")
-            await conn.commit()
     
     yield
 

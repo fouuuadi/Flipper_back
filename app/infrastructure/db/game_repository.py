@@ -13,17 +13,16 @@ class GameRepository:
         """
         self.pool = pool
 
-    async def create(self, player_id: int, mode: GameMode) -> Game:
+    async def create(self, player_id: int, room_id: int | None, mode: GameMode) -> Game:
         """
         Crée une nouvelle game en état PLAYING.
         """
         async with self.pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cursor:
                 await cursor.execute(
-                    "INSERT INTO games (player_id, mode, score, status) VALUES (%s, %s, %s, %s)",
-                    (player_id, mode.value, 0, GameStatus.PLAYING.value)
+                    "INSERT INTO games (player_id, room_id, mode, score, status) VALUES (%s, %s, %s, %s, %s)",
+                    (player_id, room_id, mode.value, 0, GameStatus.PLAYING.value)
                 )
-                await conn.commit()
                 game_id = cursor.lastrowid
                 
                 # Récupérer la game créée
@@ -36,7 +35,7 @@ class GameRepository:
         async with self.pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cursor:
                 await cursor.execute(
-                    "SELECT id, match_id, player_id, mode, score, status, started_at, finished_at FROM games WHERE id = %s",
+                    "SELECT id, match_id, player_id, room_id, mode, score, status, started_at, finished_at FROM games WHERE id = %s",
                     (id,)
                 )
                 row = await cursor.fetchone()
@@ -46,6 +45,7 @@ class GameRepository:
                         id=row['id'],
                         match_id=row['match_id'],
                         player_id=row['player_id'],
+                        room_id=row['room_id'],
                         mode=GameMode(row['mode']),
                         score=row['score'],
                         status=GameStatus(row['status']),

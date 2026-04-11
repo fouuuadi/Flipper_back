@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 
 class GameEventType(str, Enum):
+    GAME_STARTED = "game_started"
     BUMPER_HIT = "bumper_hit"
     BALL_LOST = "ball_lost"
     BONUS = "bonus"

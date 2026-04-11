@@ -25,7 +25,6 @@ class RoomRepository:
                     "INSERT INTO rooms (code, mode, status) VALUES (%s, %s, %s)",
                     (code, mode.value, RoomStatus.WAITING.value)
                 )
-                await conn.commit()
                 room_id = cursor.lastrowid
                 
                 # Récupérer la room créée
