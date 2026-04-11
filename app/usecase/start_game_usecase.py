@@ -1,7 +1,5 @@
-from app.domain.game import Game, GameMode
-from app.domain.game_event import GameEvent, GameEventType
-from app.domain.player import Player
-from app.domain.room import Room
+from app.domain.game import GameMode
+from app.domain.game_event import GameEventType
 from app.infrastructure.db.player_repository import PlayerRepository
 from app.infrastructure.db.room_repository import RoomRepository
 from app.infrastructure.db.game_repository import GameRepository
@@ -45,7 +43,7 @@ class StartGameUseCase:
         else:
             room = await self.room_repo.create(mode)
         
-        game = await self.game_repo.create(player.id, mode)
+        game = await self.game_repo.create(player.id, room.id, mode)
         
         event = await self.event_repo.create(game.id, GameEventType.GAME_STARTED)
         
