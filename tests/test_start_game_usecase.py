@@ -82,8 +82,6 @@ async def clean_tables(db_pool):
             await conn.commit()
     
     yield
-    
-    g
 
 
 @pytest.mark.asyncio
