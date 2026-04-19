@@ -6,8 +6,10 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 
 from app.infrastructure.db.mysql import connect, disconnect
+from app.infrastructure import di
 from app.transport.http.health import router as health_router
 from app.transport.http.root import router as root_router
+from app.transport.http.games import router as games_router
 from app.transport.ws.handler import router as ws_router
 
 load_dotenv()
@@ -17,16 +19,17 @@ logging.basicConfig(level=logging.INFO)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await connect()
+    db_pool = await connect()
+    di.set_db_pool(db_pool)
     yield
     await disconnect()
-
 
 app = FastAPI(title="Flipper Backend", lifespan=lifespan)
 
 # Routes HTTP
 app.include_router(root_router)
 app.include_router(health_router)
+app.include_router(games_router)
 
 # Routes WebSocket
 app.include_router(ws_router)
