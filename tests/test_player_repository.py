@@ -24,7 +24,7 @@ async def db_pool():
         port=int(os.getenv("DB_PORT", 3306)),
         user=os.getenv("DB_USER", "flipper"),
         password=os.getenv("DB_PASSWORD"),
-        db=os.getenv("MYSQL_DATABASE", "flipper"),
+        db=os.getenv("DB_NAME", "flipper"),
         minsize=1,
         maxsize=5,
         connect_timeout=10,
@@ -62,11 +62,11 @@ async def test_create_and_get_by_id(repository, clean_table):
     Test : créer un joueur et le récupérer par ID.
     """
     # Créer un joueur
-    player = await repository.create("alice")
+    player = await repository.create("oscar")
     
     # Vérifier que le joueur a un ID
     assert player.id is not None
-    assert player.pseudo == "alice"
+    assert player.pseudo == "oscar"
     assert player.created_at is not None
     
     # Récupérer le joueur par ID
@@ -74,7 +74,7 @@ async def test_create_and_get_by_id(repository, clean_table):
     
     assert retrieved is not None
     assert retrieved.id == player.id
-    assert retrieved.pseudo == "alice"
+    assert retrieved.pseudo == "oscar"
 
 
 @pytest.mark.asyncio
@@ -100,11 +100,11 @@ async def test_duplicate_pseudo_raises_error(repository, clean_table):
     Test : tenter de créer deux joueurs avec le même pseudo lève une erreur.
     """
     # Créer le premier joueur
-    await repository.create("charlie")
+    await repository.create("oscar")
     
     # Tenter de créer un deuxième avec le même pseudo
     with pytest.raises(ValueError, match="déjà utilisé"):
-        await repository.create("charlie")
+        await repository.create("oscar")
 
 
 @pytest.mark.asyncio
