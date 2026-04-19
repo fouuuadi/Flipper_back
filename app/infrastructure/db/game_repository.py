@@ -74,3 +74,44 @@ class GameRepository:
                         finished_at=row['finished_at']
                     )
                 return None
+
+    async def add_points(self, game_id: int, points: int) -> Game:
+        """
+        Ajoute des points au score d'une game.
+        """
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    "UPDATE games SET score = score + %s WHERE id = %s",
+                    (points, game_id)
+                )
+                await conn.commit()
+            
+            return await self.get_by_id(game_id)
+
+    async def get_active_by_room(self, room_id: int) -> list[Game]:
+        """
+        Récupère toutes les games actives (PLAYING) d'une room.
+        """
+        async with self.pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT id, match_id, player_id, room_id, mode, score, status, started_at, finished_at FROM games WHERE room_id = %s AND status = %s",
+                    (room_id, GameStatus.PLAYING.value)
+                )
+                rows = await cursor.fetchall()
+                
+                games = []
+                for row in rows:
+                    games.append(Game(
+                        id=row['id'],
+                        match_id=row['match_id'],
+                        player_id=row['player_id'],
+                        room_id=row['room_id'],
+                        mode=GameMode(row['mode']),
+                        score=row['score'],
+                        status=GameStatus(row['status']),
+                        started_at=row['started_at'],
+                        finished_at=row['finished_at']
+                    ))
+                return games
