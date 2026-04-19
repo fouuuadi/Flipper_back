@@ -21,18 +21,33 @@ class PlayerRepository:
         Crée un nouveau joueur.
         """
         async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cursor:
+            # INSERT avec curseur normal (pas DictCursor)
+            async with conn.cursor() as cursor:
                 try:
                     await cursor.execute(
                         "INSERT INTO players (pseudo) VALUES (%s)",
                         (pseudo,)
                     )
                     player_id = cursor.lastrowid
-                    
-                    # Récupérer le joueur créé
-                    return await self.get_by_id(player_id)
+                    await conn.commit()
                 except aiomysql.IntegrityError as e:
                     raise ValueError(f"Le pseudo '{pseudo}' est déjà utilisé") from e
+            
+            # SELECT avec DictCursor
+            async with conn.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT id, pseudo, created_at FROM players WHERE id = %s",
+                    (player_id,)
+                )
+                row = await cursor.fetchone()
+                
+                if row:
+                    return Player(
+                        id=row['id'],
+                        pseudo=row['pseudo'],
+                        created_at=row['created_at']
+                    )
+                return None
 
     async def get_by_id(self, id: int) -> Player | None:
         """

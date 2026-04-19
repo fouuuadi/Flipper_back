@@ -20,15 +20,32 @@ class RoomRepository:
         code = uuid.uuid4().hex[:6].upper()
         
         async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cursor:
+            # INSERT avec curseur normal (pas DictCursor)
+            async with conn.cursor() as cursor:
                 await cursor.execute(
                     "INSERT INTO rooms (code, mode, status) VALUES (%s, %s, %s)",
                     (code, mode.value, RoomStatus.WAITING.value)
                 )
                 room_id = cursor.lastrowid
+                await conn.commit()
+            
+            # SELECT avec DictCursor
+            async with conn.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT id, code, mode, status, created_at FROM rooms WHERE id = %s",
+                    (room_id,)
+                )
+                row = await cursor.fetchone()
                 
-                # Récupérer la room créée
-                return await self.get_by_id(room_id)
+                if row:
+                    return Room(
+                        id=row['id'],
+                        code=row['code'],
+                        mode=GameMode(row['mode']),
+                        status=RoomStatus(row['status']),
+                        created_at=row['created_at']
+                    )
+                return None
 
     async def get_by_id(self, id: int) -> Room | None:
         """
