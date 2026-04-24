@@ -80,6 +80,7 @@ class GameRepository:
         Ajoute des points au score d'une game.
         """
         async with self.pool.acquire() as conn:
+            # UPDATE avec curseur normal
             async with conn.cursor() as cursor:
                 await cursor.execute(
                     "UPDATE games SET score = score + %s WHERE id = %s",
@@ -87,7 +88,26 @@ class GameRepository:
                 )
                 await conn.commit()
             
-            return await self.get_by_id(game_id)
+            async with conn.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT id, match_id, player_id, room_id, mode, score, status, started_at, finished_at FROM games WHERE id = %s",
+                    (game_id,)
+                )
+                row = await cursor.fetchone()
+                
+                if row:
+                    return Game(
+                        id=row['id'],
+                        match_id=row['match_id'],
+                        player_id=row['player_id'],
+                        room_id=row['room_id'],
+                        mode=GameMode(row['mode']),
+                        score=row['score'],
+                        status=GameStatus(row['status']),
+                        started_at=row['started_at'],
+                        finished_at=row['finished_at']
+                    )
+                return None
 
     async def get_active_by_room(self, room_id: int) -> list[Game]:
         """
