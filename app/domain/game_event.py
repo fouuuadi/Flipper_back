@@ -13,6 +13,7 @@ class GameEventType(str, Enum):
     BONUS = "bonus"
     FLIPPER_HIT = "flipper_hit"
     GAME_OVER = "game_over"
+    GAME_FINISHED = "game_finished"
 
 
 class GameEvent(BaseModel):
