@@ -47,13 +47,19 @@ async def repository(db_pool):
 @pytest_asyncio.fixture
 async def clean_table(db_pool):
     """
-    Fixture pour nettoyer la table players avant chaque test.
+    Fixture pour nettoyer la table players avant et après chaque test.
     """
     async with db_pool.acquire() as conn:
         async with conn.cursor() as cursor:
             await cursor.execute("DELETE FROM players")
+        await conn.commit()
     
     yield
+    
+    async with db_pool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute("DELETE FROM players")
+        await conn.commit()
 
 
 @pytest.mark.asyncio
