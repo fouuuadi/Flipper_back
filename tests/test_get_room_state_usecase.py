@@ -3,7 +3,7 @@ import pytest_asyncio
 import aiomysql
 from dotenv import load_dotenv
 import os
-from app.domain.game import GameMode, GameStatus
+from app.domain.game import GameMode
 from app.domain.game_event import GameEventType
 from app.usecase.start_game_usecase import StartGameUseCase
 from app.usecase.add_game_event_usecase import AddGameEventUseCase
