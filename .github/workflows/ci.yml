@@ -24,6 +24,21 @@ jobs:
 
   tests:
     runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: rootpass
+          MYSQL_DATABASE: flipper
+          MYSQL_USER: flipper
+          MYSQL_PASSWORD: flipperpass
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+        ports:
+          - 3306:3306
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -36,7 +51,23 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Initialize database
+        env:
+          DB_HOST: 127.0.0.1
+          DB_USER: flipper
+          DB_PASSWORD: flipperpass
+          DB_NAME: flipper
+        run: |
+          mysql -h 127.0.0.1 -u flipper -pflipperpass flipper < db/init/001_create_players.sql
+
       - name: Run tests
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: flipper
+          DB_PASSWORD: flipperpass
+          DB_NAME: flipper
+          MYSQL_DATABASE: flipper
         run: pytest tests/ -v
 
   docker-build:
