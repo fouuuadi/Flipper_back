@@ -59,9 +59,6 @@ jobs:
           DB_NAME: flipper
         run: |
           mysql -h 127.0.0.1 -u flipper -pflipperpass flipper < db/init/001_create_players.sql
-          mysql -h 127.0.0.1 -u flipper -pflipperpass flipper < db/init/002_create_rooms.sql
-          mysql -h 127.0.0.1 -u flipper -pflipperpass flipper < db/init/003_create_games.sql
-          mysql -h 127.0.0.1 -u flipper -pflipperpass flipper < db/init/004_create_game_events.sql
 
       - name: Run tests
         env:
