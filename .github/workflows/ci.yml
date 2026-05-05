@@ -30,3 +30,57 @@ jobs:
 
       - name: Build Docker image
         run: docker build -t flipper-backend .
+
+  tests:
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: flipper
+          MYSQL_USER: flipper
+          MYSQL_PASSWORD: flipper_password
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+        ports:
+          - 3306:3306
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Wait for MySQL
+        run: |
+          for i in {1..30}; do
+            mysql -h 127.0.0.1 -u flipper -pflipper_password -e "SELECT 1" && break
+            sleep 1
+          done
+
+      - name: Initialize database
+        run: |
+          mysql -h 127.0.0.1 -u flipper -pflipper_password flipper < db/init/001_create_players.sql
+          mysql -h 127.0.0.1 -u flipper -pflipper_password flipper < db/init/002_create_rooms.sql
+          mysql -h 127.0.0.1 -u flipper -pflipper_password flipper < db/init/003_create_games.sql
+          mysql -h 127.0.0.1 -u flipper -pflipper_password flipper < db/init/004_create_game_events.sql
+
+      - name: Run tests
+        env:
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_USER: flipper
+          DB_PASSWORD: flipper_password
+          DB_NAME: flipper
+          MYSQL_DATABASE: flipper
+        run: pytest tests/ -v
