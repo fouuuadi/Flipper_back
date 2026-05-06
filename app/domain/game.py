@@ -19,6 +19,7 @@ class GameStatus(str, Enum):
 class Game(BaseModel):
     id: int | None = None
     match_id: int | None = None
+    room_id: int | None = None
     player_id: int
     mode: GameMode
     score: int = 0

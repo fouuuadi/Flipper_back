@@ -5,7 +5,6 @@ from app.domain.player import Player
 class PlayerRepository:
     """
     Repository pour gérer les opérations CRUD sur les joueurs.
-    Utilise aiomysql pour les requêtes async.
     """
 
     def __init__(self, pool: aiomysql.Pool):
@@ -20,40 +19,39 @@ class PlayerRepository:
     async def create(self, pseudo: str) -> Player:
         """
         Crée un nouveau joueur.
-        
-        Args:
-            pseudo: Pseudo du joueur
-            
-        Returns:
-            Player créé avec son ID
-            
-        Raises:
-            ValueError: Si le pseudo existe déjà
         """
         async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cursor:
+            # INSERT avec curseur normal (pas DictCursor)
+            async with conn.cursor() as cursor:
                 try:
                     await cursor.execute(
                         "INSERT INTO players (pseudo) VALUES (%s)",
                         (pseudo,)
                     )
-                    await conn.commit()
                     player_id = cursor.lastrowid
-                    
-                    # Récupérer le joueur créé
-                    return await self.get_by_id(player_id)
+                    await conn.commit()
                 except aiomysql.IntegrityError as e:
                     raise ValueError(f"Le pseudo '{pseudo}' est déjà utilisé") from e
+            
+            # SELECT avec DictCursor
+            async with conn.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT id, pseudo, created_at FROM players WHERE id = %s",
+                    (player_id,)
+                )
+                row = await cursor.fetchone()
+                
+                if row:
+                    return Player(
+                        id=row['id'],
+                        pseudo=row['pseudo'],
+                        created_at=row['created_at']
+                    )
+                return None
 
     async def get_by_id(self, id: int) -> Player | None:
         """
         Récupère un joueur par son ID.
-        
-        Args:
-            id: ID du joueur
-            
-        Returns:
-            Player trouvé ou None
         """
         async with self.pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cursor:
@@ -74,12 +72,6 @@ class PlayerRepository:
     async def get_by_pseudo(self, pseudo: str) -> Player | None:
         """
         Récupère un joueur par son pseudo.
-        
-        Args:
-            pseudo: Pseudo du joueur
-            
-        Returns:
-            Player trouvé ou None
         """
         async with self.pool.acquire() as conn:
             async with conn.cursor(aiomysql.DictCursor) as cursor:
