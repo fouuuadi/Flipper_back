@@ -34,7 +34,7 @@ jobs:
         with:
           image-ref: ${{ env.IMAGE_NAME }}:${{ github.sha }}
           exit-code: "1"
-          severity: CRITICAL
+          severity: HIGH
 
       # Login après le build pour ne pas interférer avec le pull Docker Hub
       - name: Login to GHCR
