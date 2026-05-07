@@ -135,3 +135,36 @@ class GameRepository:
                         finished_at=row['finished_at']
                     ))
                 return games
+
+    async def finish(self, game_id: int) -> Game:
+        """
+        Marque une game comme FINISHED et définit finished_at.
+        """
+        async with self.pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                await cursor.execute(
+                    "UPDATE games SET status = %s, finished_at = NOW() WHERE id = %s",
+                    (GameStatus.FINISHED.value, game_id)
+                )
+                await conn.commit()
+            
+            async with conn.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT id, match_id, player_id, room_id, mode, score, status, started_at, finished_at FROM games WHERE id = %s",
+                    (game_id,)
+                )
+                row = await cursor.fetchone()
+                
+                if row:
+                    return Game(
+                        id=row['id'],
+                        match_id=row['match_id'],
+                        player_id=row['player_id'],
+                        room_id=row['room_id'],
+                        mode=GameMode(row['mode']),
+                        score=row['score'],
+                        status=GameStatus(row['status']),
+                        started_at=row['started_at'],
+                        finished_at=row['finished_at']
+                    )
+                return None

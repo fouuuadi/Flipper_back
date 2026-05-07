@@ -1,9 +1,11 @@
+from datetime import datetime
 from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel
 from app.domain.game import GameMode
 from app.domain.game_event import GameEventType
 from app.usecase.start_game_usecase import StartGameUseCase
 from app.usecase.add_game_event_usecase import AddGameEventUseCase
+from app.usecase.finish_game_usecase import FinishGameUseCase
 from app.infrastructure.db.player_repository import PlayerRepository
 from app.infrastructure.db.room_repository import RoomRepository
 from app.infrastructure.db.game_repository import GameRepository
@@ -33,6 +35,13 @@ class AddGameEventRequest(BaseModel):
 class AddGameEventResponse(BaseModel):
     game_id: int
     new_score: int
+    event_id: int
+
+
+class FinishGameResponse(BaseModel):
+    game_id: int
+    status: str
+    finished_at: datetime
     event_id: int
 
 
@@ -97,3 +106,28 @@ async def add_game_event(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception:
         raise HTTPException(status_code=500, detail="Erreur lors de l'ajout de l'événement")
+
+
+@router.post("/{game_id}/finish", status_code=status.HTTP_200_OK, response_model=FinishGameResponse)
+async def finish_game(
+    game_id: int,
+    game_repo: GameRepository = Depends(di.get_game_repo),
+    event_repo: GameEventRepository = Depends(di.get_event_repo)
+):
+    """Termine une game en cours."""
+    try:
+        usecase = FinishGameUseCase(game_repo, event_repo)
+        
+        result = await usecase.execute(game_id=game_id)
+        
+        return FinishGameResponse(
+            game_id=result["game"].id,
+            status=result["game"].status.value,
+            finished_at=result["game"].finished_at,
+            event_id=result["event"].id
+        )
+    
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Erreur lors de la fin de la partie")
