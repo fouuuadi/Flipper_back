@@ -1,8 +1,4 @@
-from datetime import datetime
 from fastapi import APIRouter, HTTPException, status, Depends
-from pydantic import BaseModel
-from app.domain.game import GameMode
-from app.domain.game_event import GameEventType
 from app.usecase.start_game_usecase import StartGameUseCase
 from app.usecase.add_game_event_usecase import AddGameEventUseCase
 from app.usecase.finish_game_usecase import FinishGameUseCase
@@ -12,73 +8,19 @@ from app.infrastructure.db.player_repository import PlayerRepository
 from app.infrastructure.db.room_repository import RoomRepository
 from app.infrastructure.db.game_repository import GameRepository
 from app.infrastructure.db.game_event_repository import GameEventRepository
-from app.infrastructure import di  
-
-
-# Schemas de requête et réponse pour l'endpoint /games/start
-class StartGameRequest(BaseModel):
-    pseudo: str
-    mode: GameMode
-    room_code: str | None = None
-
-
-class StartGameResponse(BaseModel):
-    player_id: int
-    room_code: str
-    game_id: int
-    event_id: int
-
-
-class AddGameEventRequest(BaseModel):
-    type: GameEventType
-    points: int = 0
-
-
-class AddGameEventResponse(BaseModel):
-    game_id: int
-    new_score: int
-    event_id: int
-
-
-class FinishGameResponse(BaseModel):
-    game_id: int
-    status: str
-    finished_at: datetime
-    event_id: int
-
-
-class GameEventDTO(BaseModel):
-    id: int
-    type: str
-    points: int
-    occured_at: datetime
-
-
-class GetGameStateResponse(BaseModel):
-    game_id: int
-    player_id: int
-    score: int
-    status: str
-    started_at: datetime
-    finished_at: datetime | None
-    events: list[GameEventDTO]
-
-
-class GameWithEventsDTO(BaseModel):
-    game_id: int
-    player_id: int
-    score: int
-    status: str
-    started_at: datetime
-    finished_at: datetime | None
-    events: list[GameEventDTO]
-
-
-class GetRoomStateResponse(BaseModel):
-    room_code: str
-    mode: str
-    status: str
-    games: list[GameWithEventsDTO]
+from app.infrastructure.ws.room_hub import HubManager
+from app.infrastructure import di
+from app.transport.http.dtos import (
+    StartGameRequest,
+    StartGameResponse,
+    AddGameEventRequest,
+    AddGameEventResponse,
+    FinishGameResponse,
+    GameEventDTO,
+    GetGameStateResponse,
+    GameWithEventsDTO,
+    GetRoomStateResponse,
+)
 
 
 router = APIRouter(prefix="/games", tags=["games"])
@@ -90,7 +32,8 @@ async def start_game(
     player_repo: PlayerRepository = Depends(di.get_player_repo),
     room_repo: RoomRepository = Depends(di.get_room_repo),
     game_repo: GameRepository = Depends(di.get_game_repo),
-    event_repo: GameEventRepository = Depends(di.get_event_repo)
+    event_repo: GameEventRepository = Depends(di.get_event_repo),
+    hub_manager: HubManager = Depends(di.get_hub_manager)
 ):
     """Démarre une nouvelle partie."""
     try: 
@@ -101,6 +44,19 @@ async def start_game(
             mode=request.mode,
             room_code=request.room_code
         )
+        
+        # Broadcaster le GAME_STARTED event aux clients WebSocket de la room
+        message = {
+            "type": "game_started",
+            "event": {
+                "id": result["event"].id,
+                "game_id": result["game"].id,
+                "type": result["event"].type.value,
+                "points": result["event"].points,
+                "occured_at": result["event"].occured_at.isoformat()
+            }
+        }
+        await hub_manager.broadcast_to_room(result["room"].code, message)
         
         return StartGameResponse(
             player_id=result["player"].id,
@@ -120,9 +76,11 @@ async def add_game_event(
     game_id: int,
     request: AddGameEventRequest,
     game_repo: GameRepository = Depends(di.get_game_repo),
-    event_repo: GameEventRepository = Depends(di.get_event_repo)
+    room_repo: RoomRepository = Depends(di.get_room_repo),
+    event_repo: GameEventRepository = Depends(di.get_event_repo),
+    hub_manager: HubManager = Depends(di.get_hub_manager)
 ):
-    """Ajoute un événement à une game en cours."""
+    """Ajoute un événement à une game en cours et le broadcast aux clients WebSocket."""
     try:
         usecase = AddGameEventUseCase(game_repo, event_repo)
         
@@ -131,6 +89,25 @@ async def add_game_event(
             event_type=request.type,
             points=request.points
         )
+        
+        # Récupérer la room pour connaître le room_code
+        game = result["game"]
+        room = await room_repo.get_by_id(game.room_id)
+        
+        # Construire le message à broadcaster
+        message = {
+            "type": "game_event",
+            "event": {
+                "id": result["event"].id,
+                "game_id": result["event"].game_id,
+                "type": result["event"].type.value,
+                "points": result["event"].points,
+                "occured_at": result["event"].occured_at.isoformat()
+            }
+        }
+        
+        # Broadcaster l'événement aux clients de la room
+        await hub_manager.broadcast_to_room(room.code, message)
         
         return AddGameEventResponse(
             game_id=result["game"].id,
@@ -148,13 +125,32 @@ async def add_game_event(
 async def finish_game(
     game_id: int,
     game_repo: GameRepository = Depends(di.get_game_repo),
-    event_repo: GameEventRepository = Depends(di.get_event_repo)
+    room_repo: RoomRepository = Depends(di.get_room_repo),
+    event_repo: GameEventRepository = Depends(di.get_event_repo),
+    hub_manager: HubManager = Depends(di.get_hub_manager)
 ):
     """Termine une game en cours."""
     try:
         usecase = FinishGameUseCase(game_repo, event_repo)
         
         result = await usecase.execute(game_id=game_id)
+        
+        # Récupérer la room pour broadcaster le GAME_OVER event
+        game = result["game"]
+        room = await room_repo.get_by_id(game.room_id)
+        
+        # Broadcaster le GAME_OVER event aux clients WebSocket de la room
+        message = {
+            "type": "game_finished",
+            "event": {
+                "id": result["event"].id,
+                "game_id": result["event"].game_id,
+                "type": result["event"].type.value,
+                "points": result["event"].points,
+                "occured_at": result["event"].occured_at.isoformat()
+            }
+        }
+        await hub_manager.broadcast_to_room(room.code, message)
         
         return FinishGameResponse(
             game_id=result["game"].id,
