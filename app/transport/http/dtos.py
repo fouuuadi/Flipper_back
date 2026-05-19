@@ -112,3 +112,32 @@ class GameFinishedBroadcastDTO(BaseModel):
     """Message broadcast pour la fin d'une partie"""
     type: str = "game_finished"
     event: GameEventBroadcastEvent
+
+
+# UC-08 : Créer une room
+
+class CreateRoomRequest(BaseModel):
+    mode: GameMode
+
+
+class CreateRoomResponse(BaseModel):
+    room_code: str
+    mode: str
+    status: str
+    created_at: datetime
+
+
+# UC-09 : Rejoindre une room
+
+class RoomGameDTO(BaseModel):
+    game_id: int
+    player_id: int
+    score: int
+    status: str
+
+
+class JoinRoomResponse(BaseModel):
+    room_code: str
+    mode: str
+    status: str
+    games: list[RoomGameDTO] = []
