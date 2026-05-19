@@ -3,6 +3,7 @@ import pytest_asyncio
 import aiomysql
 from dotenv import load_dotenv
 import os
+from app.domain.exceptions import PlayerAlreadyExistsError
 from app.infrastructure.db.player_repository import PlayerRepository
 
 
@@ -116,7 +117,7 @@ async def test_duplicate_pseudo_raises_error(repository, clean_table):
     await repository.create("charlie")
     
     # Tenter de créer un deuxième avec le même pseudo
-    with pytest.raises(ValueError, match="déjà utilisé"):
+    with pytest.raises(PlayerAlreadyExistsError, match="déjà utilisé"):
         await repository.create("charlie")
 
 

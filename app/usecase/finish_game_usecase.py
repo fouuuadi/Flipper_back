@@ -1,3 +1,4 @@
+from app.domain.exceptions import GameAlreadyFinishedError, GameNotFoundError
 from app.domain.game import GameStatus
 from app.domain.game_event import GameEventType
 from app.infrastructure.db.game_repository import GameRepository
@@ -28,10 +29,10 @@ class FinishGameUseCase:
         """
         game = await self.game_repo.get_by_id(game_id)
         if not game:
-            raise ValueError(f"Game avec ID '{game_id}' n'existe pas")
-        
+            raise GameNotFoundError(f"Game avec ID '{game_id}' n'existe pas")
+
         if game.status != GameStatus.PLAYING:
-            raise ValueError(f"Impossible de finir une game en état {game.status}")
+            raise GameAlreadyFinishedError(f"Impossible de finir une game en état {game.status}")
         
         # Marquer la game comme FINISHED
         game = await self.game_repo.finish(game_id)
