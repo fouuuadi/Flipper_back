@@ -1,3 +1,4 @@
+from app.domain.exceptions import RoomNotFoundError
 from app.infrastructure.db.room_repository import RoomRepository
 from app.infrastructure.db.game_repository import GameRepository
 from app.infrastructure.db.game_event_repository import GameEventRepository
@@ -29,7 +30,7 @@ class GetRoomStateUseCase:
         """
         room = await self.room_repo.get_by_code(room_code)
         if not room:
-            raise ValueError(f"Room avec code '{room_code}' n'existe pas")
+            raise RoomNotFoundError(f"Room avec code '{room_code}' n'existe pas")
         
         games = await self.game_repo.get_active_by_room(room.id)
         

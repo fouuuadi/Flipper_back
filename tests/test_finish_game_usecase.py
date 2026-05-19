@@ -3,6 +3,7 @@ import pytest_asyncio
 import aiomysql
 from dotenv import load_dotenv
 import os
+from app.domain.exceptions import GameAlreadyFinishedError, GameNotFoundError
 from app.domain.game import GameMode, GameStatus
 from app.domain.game_event import GameEventType
 from app.usecase.start_game_usecase import StartGameUseCase
@@ -128,16 +129,16 @@ async def test_finish_game_playing(usecase, repositories, clean_tables):
 @pytest.mark.asyncio
 async def test_finish_game_nonexistent(usecase, clean_tables):
     """
-    Test : finir une game inexistante lève une ValueError.
+    Test : finir une game inexistante lève GameNotFoundError.
     """
-    with pytest.raises(ValueError, match="n'existe pas"):
+    with pytest.raises(GameNotFoundError, match="n'existe pas"):
         await usecase.execute(game_id=999)
 
 
 @pytest.mark.asyncio
 async def test_finish_game_already_finished(usecase, repositories, clean_tables):
     """
-    Test : finir une game déjà FINISHED lève une ValueError.
+    Test : finir une game déjà FINISHED lève GameAlreadyFinishedError.
     """
     # 1. Créer et finir une game
     start_usecase = StartGameUseCase(
@@ -157,5 +158,5 @@ async def test_finish_game_already_finished(usecase, repositories, clean_tables)
     await usecase.execute(game_id=game_id)
     
     # 3. Essayer de finir deux fois
-    with pytest.raises(ValueError, match="en état"):
+    with pytest.raises(GameAlreadyFinishedError, match="en état"):
         await usecase.execute(game_id=game_id)

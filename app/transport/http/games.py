@@ -1,6 +1,7 @@
 from datetime import datetime
 from fastapi import APIRouter, HTTPException, status, Depends
 from pydantic import BaseModel
+from app.domain.exceptions import DomainError
 from app.domain.game import GameMode
 from app.domain.game_event import GameEventType
 from app.usecase.start_game_usecase import StartGameUseCase
@@ -109,7 +110,7 @@ async def start_game(
             event_id=result["event"].id
         )
     
-    except ValueError as e:
+    except DomainError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception:
         raise HTTPException(status_code=500, detail="Erreur lors du démarrage de la partie")
@@ -138,7 +139,7 @@ async def add_game_event(
             event_id=result["event"].id
         )
     
-    except ValueError as e:
+    except DomainError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception:
         raise HTTPException(status_code=500, detail="Erreur lors de l'ajout de l'événement")
@@ -163,7 +164,7 @@ async def finish_game(
             event_id=result["event"].id
         )
     
-    except ValueError as e:
+    except DomainError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception:
         raise HTTPException(status_code=500, detail="Erreur lors de la fin de la partie")
@@ -201,7 +202,7 @@ async def get_game_state(
             events=events
         )
     
-    except ValueError as e:
+    except DomainError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception:
         raise HTTPException(status_code=500, detail="Erreur lors de la récupération de la partie")
@@ -252,7 +253,7 @@ async def get_room_state(
             games=games_dtos
         )
     
-    except ValueError as e:
+    except DomainError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception:
         raise HTTPException(status_code=500, detail="Erreur lors de la récupération de l'état de la room")

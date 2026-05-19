@@ -3,6 +3,7 @@ import pytest_asyncio
 import aiomysql
 from dotenv import load_dotenv
 import os
+from app.domain.exceptions import RoomNotFoundError
 from app.domain.game import GameMode
 from app.domain.game_event import GameEventType
 from app.usecase.start_game_usecase import StartGameUseCase
@@ -144,5 +145,5 @@ async def test_get_room_state_with_games_and_events(usecase, repositories, clean
 @pytest.mark.asyncio
 async def test_get_room_state_nonexistent(usecase, clean_tables):
 
-    with pytest.raises(ValueError, match="n'existe pas"):
+    with pytest.raises(RoomNotFoundError, match="n'existe pas"):
         await usecase.execute(room_code="INVALID")

@@ -3,6 +3,7 @@ import pytest_asyncio
 import aiomysql
 from dotenv import load_dotenv
 import os
+from app.domain.exceptions import GameNotFoundError
 from app.domain.game import GameMode
 from app.domain.game_event import GameEventType
 from app.usecase.start_game_usecase import StartGameUseCase
@@ -136,5 +137,5 @@ async def test_get_game_state_with_events(usecase, repositories, clean_tables):
 @pytest.mark.asyncio
 async def test_get_game_state_nonexistent(usecase, clean_tables):
 
-    with pytest.raises(ValueError, match="n'existe pas"):
+    with pytest.raises(GameNotFoundError, match="n'existe pas"):
         await usecase.execute(game_id=999)
