@@ -66,3 +66,27 @@ class GameEventRepository:
                         occured_at=row['occured_at']
                     )
                 return None
+
+    async def get_by_game_id(self, game_id: int, limit: int = 10) -> list[GameEvent]:
+        """
+        Récupère les events d'une game, triés par date décroissante
+        Si les timestamps sont identiques, trie par id DESC 
+        """
+        async with self.pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT id, game_id, type, points, occured_at FROM game_events WHERE game_id = %s ORDER BY occured_at DESC, id DESC LIMIT %s",
+                    (game_id, limit)
+                )
+                rows = await cursor.fetchall()
+                
+                events = []
+                for row in rows:
+                    events.append(GameEvent(
+                        id=row['id'],
+                        game_id=row['game_id'],
+                        type=GameEventType(row['type']),
+                        points=row['points'],
+                        occured_at=row['occured_at']
+                    ))
+                return events

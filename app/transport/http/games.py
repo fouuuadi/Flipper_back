@@ -6,6 +6,8 @@ from app.domain.game_event import GameEventType
 from app.usecase.start_game_usecase import StartGameUseCase
 from app.usecase.add_game_event_usecase import AddGameEventUseCase
 from app.usecase.finish_game_usecase import FinishGameUseCase
+from app.usecase.get_game_state_usecase import GetGameStateUseCase
+from app.usecase.get_room_state_usecase import GetRoomStateUseCase
 from app.infrastructure.db.player_repository import PlayerRepository
 from app.infrastructure.db.room_repository import RoomRepository
 from app.infrastructure.db.game_repository import GameRepository
@@ -43,6 +45,40 @@ class FinishGameResponse(BaseModel):
     status: str
     finished_at: datetime
     event_id: int
+
+
+class GameEventDTO(BaseModel):
+    id: int
+    type: str
+    points: int
+    occured_at: datetime
+
+
+class GetGameStateResponse(BaseModel):
+    game_id: int
+    player_id: int
+    score: int
+    status: str
+    started_at: datetime
+    finished_at: datetime | None
+    events: list[GameEventDTO]
+
+
+class GameWithEventsDTO(BaseModel):
+    game_id: int
+    player_id: int
+    score: int
+    status: str
+    started_at: datetime
+    finished_at: datetime | None
+    events: list[GameEventDTO]
+
+
+class GetRoomStateResponse(BaseModel):
+    room_code: str
+    mode: str
+    status: str
+    games: list[GameWithEventsDTO]
 
 
 router = APIRouter(prefix="/games", tags=["games"])
@@ -131,3 +167,92 @@ async def finish_game(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception:
         raise HTTPException(status_code=500, detail="Erreur lors de la fin de la partie")
+
+
+@router.get("/{game_id}", status_code=status.HTTP_200_OK, response_model=GetGameStateResponse)
+async def get_game_state(
+    game_id: int,
+    game_repo: GameRepository = Depends(di.get_game_repo),
+    event_repo: GameEventRepository = Depends(di.get_event_repo)
+):
+    """Récupère l'état complet d'une game avec ses événements."""
+    try:
+        usecase = GetGameStateUseCase(game_repo, event_repo)
+        
+        result = await usecase.execute(game_id=game_id)
+        
+        events = [
+            GameEventDTO(
+                id=e.id,
+                type=e.type.value,
+                points=e.points,
+                occured_at=e.occured_at
+            )
+            for e in result["events"]
+        ]
+        
+        return GetGameStateResponse(
+            game_id=result["game"].id,
+            player_id=result["game"].player_id,
+            score=result["game"].score,
+            status=result["game"].status.value,
+            started_at=result["game"].started_at,
+            finished_at=result["game"].finished_at,
+            events=events
+        )
+    
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Erreur lors de la récupération de la partie")
+
+
+@router.get("/rooms/{code}/state", status_code=status.HTTP_200_OK, response_model=GetRoomStateResponse)
+async def get_room_state(
+    code: str,
+    room_repo: RoomRepository = Depends(di.get_room_repo),
+    game_repo: GameRepository = Depends(di.get_game_repo),
+    event_repo: GameEventRepository = Depends(di.get_event_repo)
+):
+    """Récupère l'état complet d'une room avec ses games et événements."""
+    try:
+        usecase = GetRoomStateUseCase(room_repo, game_repo, event_repo)
+        
+        result = await usecase.execute(room_code=code)
+        
+        games_dtos = []
+        for item in result["games_with_events"]:
+            game = item["game"]
+            events = item["events"]
+            
+            events_dtos = [
+                GameEventDTO(
+                    id=e.id,
+                    type=e.type.value,
+                    points=e.points,
+                    occured_at=e.occured_at
+                )
+                for e in events
+            ]
+            
+            games_dtos.append(GameWithEventsDTO(
+                game_id=game.id,
+                player_id=game.player_id,
+                score=game.score,
+                status=game.status.value,
+                started_at=game.started_at,
+                finished_at=game.finished_at,
+                events=events_dtos
+            ))
+        
+        return GetRoomStateResponse(
+            room_code=result["room"].code,
+            mode=result["room"].mode.value,
+            status=result["room"].status.value,
+            games=games_dtos
+        )
+    
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Erreur lors de la récupération de l'état de la room")
