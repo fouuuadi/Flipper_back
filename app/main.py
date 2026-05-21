@@ -1,10 +1,9 @@
 import logging
-import os
 from contextlib import asynccontextmanager
 
-from dotenv import load_dotenv
 from fastapi import FastAPI
 
+from app.config import get_settings
 from app.infrastructure.db.mysql import connect, disconnect
 from app.infrastructure import di
 from app.transport.http.error_handler import register_error_handlers
@@ -14,14 +13,13 @@ from app.transport.http.games import router as games_router
 from app.transport.http.rooms import router as rooms_router
 from app.transport.ws.handler import router as ws_router
 
-load_dotenv()
-
 logging.basicConfig(level=logging.INFO)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    db_pool = await connect()
+    settings = get_settings()
+    db_pool = await connect(settings)
     di.set_db_pool(db_pool)
     yield
     await disconnect()
@@ -42,5 +40,5 @@ app.include_router(ws_router)
 if __name__ == "__main__":
     import uvicorn
 
-    port = int(os.getenv("APP_PORT", "8080"))
-    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=True)
+    settings = get_settings()
+    uvicorn.run("app.main:app", host="0.0.0.0", port=settings.app_port, reload=True)
