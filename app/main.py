@@ -11,6 +11,7 @@ from app.transport.http.error_handler import register_error_handlers
 from app.transport.http.health import router as health_router
 from app.transport.http.root import router as root_router
 from app.transport.http.games import router as games_router
+from app.transport.http.rooms import router as rooms_router
 from app.transport.ws.handler import router as ws_router
 
 load_dotenv()
@@ -33,6 +34,7 @@ register_error_handlers(app)
 app.include_router(root_router)
 app.include_router(health_router)
 app.include_router(games_router)
+app.include_router(rooms_router)
 
 # Routes WebSocket
 app.include_router(ws_router)

@@ -7,6 +7,7 @@ from app.infrastructure.db.player_repository import PlayerRepository
 from app.infrastructure.db.room_repository import RoomRepository
 from app.infrastructure.db.game_repository import GameRepository
 from app.infrastructure.db.game_event_repository import GameEventRepository
+from app.infrastructure.ws.room_hub import hub_manager
 
 _db_pool: aiomysql.Pool | None = None
 
@@ -38,3 +39,9 @@ def get_event_repo() -> GameEventRepository:
     if _db_pool is None:
         raise RuntimeError("Database pool not initialized")
     return GameEventRepository(_db_pool)
+
+
+def get_hub_manager():
+    """Retourne le singleton HubManager pour WebSocket broadcasting."""
+    return hub_manager
+
