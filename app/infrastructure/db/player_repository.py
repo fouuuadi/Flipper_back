@@ -1,4 +1,5 @@
 import aiomysql
+from app.domain.exceptions import PlayerAlreadyExistsError
 from app.domain.player import Player
 
 
@@ -31,7 +32,7 @@ class PlayerRepository:
                     player_id = cursor.lastrowid
                     await conn.commit()
                 except aiomysql.IntegrityError as e:
-                    raise ValueError(f"Le pseudo '{pseudo}' est déjà utilisé") from e
+                    raise PlayerAlreadyExistsError(f"Le pseudo '{pseudo}' est déjà utilisé") from e
             
             # SELECT avec DictCursor
             async with conn.cursor(aiomysql.DictCursor) as cursor:

@@ -3,6 +3,7 @@ import pytest_asyncio
 import aiomysql
 from dotenv import load_dotenv
 import os
+from app.domain.exceptions import GameNotFoundError, GameNotPlayableError
 from app.domain.game import GameMode, GameStatus
 from app.domain.game_event import GameEventType
 from app.usecase.start_game_usecase import StartGameUseCase
@@ -164,7 +165,7 @@ async def test_add_event_nonexistent_game(usecase, clean_tables):
     """
     Test : ajouter un événement à une game inexistante lève une erreur.
     """
-    with pytest.raises(ValueError, match="n'existe pas"):
+    with pytest.raises(GameNotFoundError, match="n'existe pas"):
         await usecase.execute(
             game_id=999,
             event_type=GameEventType.BUMPER_HIT,
@@ -201,7 +202,7 @@ async def test_add_event_finished_game(usecase, repositories, clean_tables):
             await conn.commit()
     
     # 3. Essayer d'ajouter un événement
-    with pytest.raises(ValueError, match="en état"):
+    with pytest.raises(GameNotPlayableError, match="en état"):
         await usecase.execute(
             game_id=game_id,
             event_type=GameEventType.GAME_OVER,

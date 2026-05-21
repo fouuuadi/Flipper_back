@@ -1,3 +1,4 @@
+from app.domain.exceptions import GameNotFoundError, GameNotPlayableError
 from app.domain.game import GameStatus
 from app.domain.game_event import GameEventType
 from app.infrastructure.db.game_repository import GameRepository
@@ -32,10 +33,10 @@ class AddGameEventUseCase:
         """
         game = await self.game_repo.get_by_id(game_id)
         if not game:
-            raise ValueError(f"Game avec ID '{game_id}' n'existe pas")
-        
+            raise GameNotFoundError(f"Game avec ID '{game_id}' n'existe pas")
+
         if game.status != GameStatus.PLAYING:
-            raise ValueError(f"Impossible d'ajouter un événement à une game en état {game.status}")
+            raise GameNotPlayableError(f"Impossible d'ajouter un événement à une game en état {game.status}")
         
         event = await self.event_repo.create(game_id, event_type, points)
         

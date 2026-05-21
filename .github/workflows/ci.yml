@@ -73,6 +73,26 @@ jobs:
           MYSQL_DATABASE: flipper
         run: pytest tests/ -v
 
+<<<<<<< HEAD
+=======
+  architecture:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run import-linter
+        run: lint-imports
+
+>>>>>>> f86b85c4f956d476f1c3e343ffa0e33654ede386
   docker-build:
     runs-on: ubuntu-latest
     steps:

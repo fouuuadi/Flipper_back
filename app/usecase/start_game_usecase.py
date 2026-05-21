@@ -1,3 +1,4 @@
+from app.domain.exceptions import RoomNotFoundError
 from app.domain.game import GameMode
 from app.domain.game_event import GameEventType
 from app.infrastructure.db.player_repository import PlayerRepository
@@ -39,7 +40,7 @@ class StartGameUseCase:
         if room_code:
             room = await self.room_repo.get_by_code(room_code)
             if not room:
-                raise ValueError(f"Room avec code '{room_code}' n'existe pas")
+                raise RoomNotFoundError(f"Room avec code '{room_code}' n'existe pas")
         else:
             room = await self.room_repo.create(mode)
         

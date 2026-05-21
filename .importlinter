@@ -1,0 +1,33 @@
+[importlinter]
+root_package = app
+
+[importlinter:contract:layers]
+name = Clean Architecture layers (domain < infrastructure < usecase < transport)
+type = layers
+layers =
+    app.transport
+    app.usecase
+    app.infrastructure
+    app.domain
+
+[importlinter:contract:domain-independence]
+name = Domain layer must not depend on any other layer
+type = forbidden
+source_modules =
+    app.domain
+forbidden_modules =
+    app.infrastructure
+    app.usecase
+    app.transport
+
+[importlinter:contract:usecase-no-transport]
+name = Usecase layer must not depend on transport
+type = forbidden
+source_modules =
+    app.usecase
+forbidden_modules =
+    app.transport
+
+# NOTE: A stricter contract forbidding transport -> app.infrastructure.db direct
+# imports will be reintroduced once Issue #5 (repository ports) lands and routes
+# can depend on the port interfaces from app.domain instead of concrete repos.

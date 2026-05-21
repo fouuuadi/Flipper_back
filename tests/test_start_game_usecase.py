@@ -3,6 +3,7 @@ import pytest_asyncio
 import aiomysql
 from dotenv import load_dotenv
 import os
+from app.domain.exceptions import RoomNotFoundError
 from app.domain.game import GameMode
 from app.usecase.start_game_usecase import StartGameUseCase
 from app.infrastructure.db.player_repository import PlayerRepository
@@ -171,7 +172,7 @@ async def test_start_with_nonexistent_room_code(usecase, clean_tables):
     """
     Test : essayer de rejoindre une room inexistante lève une erreur.
     """
-    with pytest.raises(ValueError, match="n'existe pas"):
+    with pytest.raises(RoomNotFoundError, match="n'existe pas"):
         await usecase.execute(
             pseudo="dave",
             mode=GameMode.SOLO,
