@@ -2,27 +2,32 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 from typing import Optional
 
 import aiomysql
+
+from app.config import Settings
 
 logger = logging.getLogger(__name__)
 
 pool: Optional[aiomysql.Pool] = None
 
 
-async def connect(max_retries: int = 10, retry_delay: float = 3.0) -> aiomysql.Pool:
+async def connect(
+    settings: Settings,
+    max_retries: int = 10,
+    retry_delay: float = 3.0,
+) -> aiomysql.Pool:
     global pool
 
     for attempt in range(1, max_retries + 1):
         try:
             pool = await aiomysql.create_pool(
-                host=os.getenv("DB_HOST", "localhost"),
-                port=int(os.getenv("DB_PORT", "3306")),
-                db=os.getenv("DB_NAME", "flipper"),
-                user=os.getenv("DB_USER", "flipper_user"),
-                password=os.getenv("DB_PASSWORD", "flipper_password"),
+                host=settings.db_host,
+                port=settings.db_port,
+                db=settings.db_name,
+                user=settings.db_user,
+                password=settings.db_password,
                 autocommit=True,
             )
             logger.info("Connected to MySQL (attempt %d/%d)", attempt, max_retries)
