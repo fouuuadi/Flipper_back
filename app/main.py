@@ -7,6 +7,7 @@ from fastapi import FastAPI
 
 from app.infrastructure.db.mysql import connect, disconnect
 from app.infrastructure import di
+from app.transport.http.error_handler import register_error_handlers
 from app.transport.http.health import router as health_router
 from app.transport.http.root import router as root_router
 from app.transport.http.games import router as games_router
@@ -26,6 +27,8 @@ async def lifespan(app: FastAPI):
     await disconnect()
 
 app = FastAPI(title="Flipper Backend", lifespan=lifespan)
+
+register_error_handlers(app)
 
 # Routes HTTP
 app.include_router(root_router)
