@@ -1,8 +1,9 @@
 import aiomysql
 from app.domain.game_event import GameEvent, GameEventType
+from app.domain.ports.game_event_repository import GameEventRepository
 
 
-class GameEventRepository:
+class MysqlGameEventRepository(GameEventRepository):
     """
     Repository pour gérer les opérations CRUD sur les game events.
     """

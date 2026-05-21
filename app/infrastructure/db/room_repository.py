@@ -2,9 +2,10 @@ import aiomysql
 import uuid
 from app.domain.room import Room, RoomStatus
 from app.domain.game import GameMode
+from app.domain.ports.room_repository import RoomRepository
 
 
-class RoomRepository:
+class MysqlRoomRepository(RoomRepository):
     """
     Repository pour gérer les opérations CRUD sur les rooms.
     """

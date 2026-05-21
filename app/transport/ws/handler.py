@@ -2,7 +2,7 @@ import logging
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
 
-from app.infrastructure import di
+from app import di
 from app.infrastructure.ws.room_hub import hub_manager
 
 logger = logging.getLogger(__name__)

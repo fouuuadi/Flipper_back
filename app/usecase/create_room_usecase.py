@@ -1,5 +1,5 @@
 from app.domain.game import GameMode
-from app.infrastructure.db.room_repository import RoomRepository
+from app.domain.ports.room_repository import RoomRepository
 
 
 class CreateRoomUseCase:

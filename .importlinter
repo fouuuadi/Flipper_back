@@ -28,6 +28,15 @@ source_modules =
 forbidden_modules =
     app.transport
 
-# NOTE: A stricter contract forbidding transport -> app.infrastructure.db direct
-# imports will be reintroduced once Issue #5 (repository ports) lands and routes
-# can depend on the port interfaces from app.domain instead of concrete repos.
+[importlinter:contract:transport-no-direct-db]
+name = Transport must not depend on db implementations
+type = forbidden
+source_modules =
+    app.transport
+forbidden_modules =
+    app.infrastructure.db
+ignore_imports =
+    app.di -> app.infrastructure.db.player_repository
+    app.di -> app.infrastructure.db.room_repository
+    app.di -> app.infrastructure.db.game_repository
+    app.di -> app.infrastructure.db.game_event_repository

@@ -1,5 +1,5 @@
-from app.infrastructure.db.room_repository import RoomRepository
-from app.infrastructure.db.game_repository import GameRepository
+from app.domain.ports.game_repository import GameRepository
+from app.domain.ports.room_repository import RoomRepository
 
 
 class JoinRoomUseCase:

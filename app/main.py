@@ -5,7 +5,7 @@ from fastapi import FastAPI
 
 from app.config import get_settings
 from app.infrastructure.db.mysql import connect, disconnect
-from app.infrastructure import di
+from app import di
 from app.transport.http.error_handler import register_error_handlers
 from app.transport.http.health import router as health_router
 from app.transport.http.root import router as root_router

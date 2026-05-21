@@ -6,9 +6,9 @@ import os
 from app.domain.game import GameMode
 from app.usecase.join_room_usecase import JoinRoomUseCase
 from app.usecase.create_room_usecase import CreateRoomUseCase
-from app.infrastructure.db.room_repository import RoomRepository
-from app.infrastructure.db.game_repository import GameRepository
-from app.infrastructure.db.player_repository import PlayerRepository
+from app.infrastructure.db.room_repository import MysqlRoomRepository
+from app.infrastructure.db.game_repository import MysqlGameRepository
+from app.infrastructure.db.player_repository import MysqlPlayerRepository
 
 
 load_dotenv()
@@ -42,9 +42,9 @@ async def db_pool():
 async def repositories(db_pool):
 
     return {
-        "player": PlayerRepository(db_pool),
-        "room": RoomRepository(db_pool),
-        "game": GameRepository(db_pool),
+        "player": MysqlPlayerRepository(db_pool),
+        "room": MysqlRoomRepository(db_pool),
+        "game": MysqlGameRepository(db_pool),
     }
 
 

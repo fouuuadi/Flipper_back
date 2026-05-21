@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from app.usecase.create_room_usecase import CreateRoomUseCase
 from app.usecase.join_room_usecase import JoinRoomUseCase
-from app.infrastructure.db.room_repository import RoomRepository
-from app.infrastructure.db.game_repository import GameRepository
-from app.infrastructure import di
+from app.domain.ports.game_repository import GameRepository
+from app.domain.ports.room_repository import RoomRepository
+from app import di
 from app.transport.http.dtos import (
     CreateRoomRequest,
     CreateRoomResponse,
