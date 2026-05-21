@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 import os
 from app.domain.game import GameMode
 from app.usecase.create_room_usecase import CreateRoomUseCase
-from app.infrastructure.db.room_repository import RoomRepository
+from app.infrastructure.db.room_repository import MysqlRoomRepository
 
 
 load_dotenv()
@@ -38,7 +38,7 @@ async def db_pool():
 @pytest_asyncio.fixture
 async def room_repo(db_pool):
 
-    return RoomRepository(db_pool)
+    return MysqlRoomRepository(db_pool)
 
 
 @pytest_asyncio.fixture

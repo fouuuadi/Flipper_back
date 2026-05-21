@@ -4,7 +4,7 @@ import aiomysql
 from dotenv import load_dotenv
 import os
 from app.domain.exceptions import PlayerAlreadyExistsError
-from app.infrastructure.db.player_repository import PlayerRepository
+from app.infrastructure.db.player_repository import MysqlPlayerRepository
 
 
 load_dotenv()
@@ -39,9 +39,9 @@ async def db_pool():
 @pytest_asyncio.fixture
 async def repository(db_pool):
     """
-    Fixture pour créer une instance du PlayerRepository.
+    Fixture pour créer une instance du MysqlPlayerRepository.
     """
-    return PlayerRepository(db_pool)
+    return MysqlPlayerRepository(db_pool)
 
 
 @pytest_asyncio.fixture

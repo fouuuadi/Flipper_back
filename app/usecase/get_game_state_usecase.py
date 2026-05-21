@@ -1,6 +1,6 @@
 from app.domain.exceptions import GameNotFoundError
-from app.infrastructure.db.game_repository import GameRepository
-from app.infrastructure.db.game_event_repository import GameEventRepository
+from app.domain.ports.game_event_repository import GameEventRepository
+from app.domain.ports.game_repository import GameRepository
 
 
 class GetGameStateUseCase:

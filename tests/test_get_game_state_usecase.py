@@ -9,10 +9,10 @@ from app.domain.game_event import GameEventType
 from app.usecase.start_game_usecase import StartGameUseCase
 from app.usecase.add_game_event_usecase import AddGameEventUseCase
 from app.usecase.get_game_state_usecase import GetGameStateUseCase
-from app.infrastructure.db.player_repository import PlayerRepository
-from app.infrastructure.db.room_repository import RoomRepository
-from app.infrastructure.db.game_repository import GameRepository
-from app.infrastructure.db.game_event_repository import GameEventRepository
+from app.infrastructure.db.player_repository import MysqlPlayerRepository
+from app.infrastructure.db.room_repository import MysqlRoomRepository
+from app.infrastructure.db.game_repository import MysqlGameRepository
+from app.infrastructure.db.game_event_repository import MysqlGameEventRepository
 
 
 load_dotenv()
@@ -46,10 +46,10 @@ async def db_pool():
 async def repositories(db_pool):
 
     return {
-        "player": PlayerRepository(db_pool),
-        "room": RoomRepository(db_pool),
-        "game": GameRepository(db_pool),
-        "event": GameEventRepository(db_pool),
+        "player": MysqlPlayerRepository(db_pool),
+        "room": MysqlRoomRepository(db_pool),
+        "game": MysqlGameRepository(db_pool),
+        "event": MysqlGameEventRepository(db_pool),
     }
 
 

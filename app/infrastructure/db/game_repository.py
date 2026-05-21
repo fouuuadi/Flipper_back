@@ -1,8 +1,9 @@
 import aiomysql
 from app.domain.game import Game, GameMode, GameStatus
+from app.domain.ports.game_repository import GameRepository
 
 
-class GameRepository:
+class MysqlGameRepository(GameRepository):
     """
     Repository pour gérer les opérations CRUD sur les games.
     """

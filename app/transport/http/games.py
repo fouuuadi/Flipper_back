@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, status
 
-from app.infrastructure import di
-from app.infrastructure.db.game_event_repository import GameEventRepository
-from app.infrastructure.db.game_repository import GameRepository
-from app.infrastructure.db.player_repository import PlayerRepository
-from app.infrastructure.db.room_repository import RoomRepository
+from app.domain.ports.game_event_repository import GameEventRepository
+from app.domain.ports.game_repository import GameRepository
+from app.domain.ports.player_repository import PlayerRepository
+from app.domain.ports.room_repository import RoomRepository
+from app import di
 from app.transport.http.schemas.add_event import AddEventRequest, AddEventResponse
 from app.transport.http.schemas.finish_game import FinishGameResponse
 from app.transport.http.schemas.game_state import GameEventDTO, GameStateResponse

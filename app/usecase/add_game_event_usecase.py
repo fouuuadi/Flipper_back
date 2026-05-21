@@ -1,8 +1,8 @@
 from app.domain.exceptions import GameNotFoundError, GameNotPlayableError
 from app.domain.game import GameStatus
 from app.domain.game_event import GameEventType
-from app.infrastructure.db.game_repository import GameRepository
-from app.infrastructure.db.game_event_repository import GameEventRepository
+from app.domain.ports.game_event_repository import GameEventRepository
+from app.domain.ports.game_repository import GameRepository
 
 
 class AddGameEventUseCase:

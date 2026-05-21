@@ -1,10 +1,10 @@
 from app.domain.exceptions import RoomNotFoundError
 from app.domain.game import GameMode
 from app.domain.game_event import GameEventType
-from app.infrastructure.db.player_repository import PlayerRepository
-from app.infrastructure.db.room_repository import RoomRepository
-from app.infrastructure.db.game_repository import GameRepository
-from app.infrastructure.db.game_event_repository import GameEventRepository
+from app.domain.ports.game_event_repository import GameEventRepository
+from app.domain.ports.game_repository import GameRepository
+from app.domain.ports.player_repository import PlayerRepository
+from app.domain.ports.room_repository import RoomRepository
 
 
 class StartGameUseCase:

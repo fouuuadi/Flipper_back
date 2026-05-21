@@ -1,9 +1,10 @@
 import aiomysql
 from app.domain.exceptions import PlayerAlreadyExistsError
 from app.domain.player import Player
+from app.domain.ports.player_repository import PlayerRepository
 
 
-class PlayerRepository:
+class MysqlPlayerRepository(PlayerRepository):
     """
     Repository pour gérer les opérations CRUD sur les joueurs.
     """
