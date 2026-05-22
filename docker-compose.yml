@@ -43,7 +43,7 @@ services:
     container_name: flipper_redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "${REDIS_PORT}:6379"
     networks:
       - flipper_net
     healthcheck:
