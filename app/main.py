@@ -5,6 +5,7 @@ from fastapi import FastAPI
 
 from app.config import get_settings
 from app.infrastructure.db.mysql import connect, disconnect
+from app.infrastructure.redis import client as redis_client
 from app import di
 from app.transport.http.error_handler import register_error_handlers
 from app.transport.http.health import router as health_router
@@ -21,7 +22,10 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
     db_pool = await connect(settings)
     di.set_db_pool(db_pool)
+    redis = await redis_client.connect(settings.redis_url)
+    di.set_redis_client(redis)
     yield
+    await redis_client.disconnect(redis)
     await disconnect()
 
 app = FastAPI(title="Flipper Backend", lifespan=lifespan)

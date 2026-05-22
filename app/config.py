@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     db_user: str = "flipper_user"
     db_password: str = "flipper_password"
 
+    redis_url: str = "redis://localhost:6379"
+    redis_session_ttl_seconds: int = 1800
+
 
 @lru_cache
 def get_settings() -> Settings:
