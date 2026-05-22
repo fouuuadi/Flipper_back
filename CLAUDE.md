@@ -42,7 +42,7 @@ On migre vers une **nouvelle archi** (Redis sessions, MQTT IoT, écriture DB en 
 
 | Outil | Rôle |
 |---|---|
-| Redis (aioredis) | Sessions de jeu en mémoire (score live, statut, pseudo) |
+| Redis (redis-py async client, Hash storage, sliding TTL 30 min) | Sessions de jeu en mémoire (score live, statut, pseudo) |
 | MQTT broker (Mosquitto) | Réception events IoT (bumpers, ball lost, etc.) |
 | aiomqtt | Client MQTT async pour FastAPI |
 
@@ -307,7 +307,7 @@ APP_PORT=8000
 - [x] CI/CD GitHub Actions → GHCR
 - [x] Docker Compose (MySQL + phpMyAdmin + backend)
 - [x] ruff + import-linter (4 contracts)
-- [ ] Redis sessions
+- [x] Redis sessions (port + Redis Hash impl + sliding TTL)
 - [ ] MQTT bridge
 - [ ] POST /scores (flush final)
 - [ ] Migration PostgreSQL
