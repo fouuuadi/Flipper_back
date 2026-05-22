@@ -39,6 +39,15 @@ jobs:
           --health-retries=3
         ports:
           - 3306:3306
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+        ports:
+          - 6379:6379
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -71,6 +80,7 @@ jobs:
           DB_PASSWORD: flipperpass
           DB_NAME: flipper
           MYSQL_DATABASE: flipper
+          REDIS_URL: redis://127.0.0.1:6379
         run: pytest tests/ -v
 
   architecture:
