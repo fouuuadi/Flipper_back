@@ -13,10 +13,15 @@ class SessionStatus(str, Enum):
     OVER = "over"         # partie finie, en attente du POST /scores
 
 
+DEFAULT_LIVES = 3
+
+
 class Session(BaseModel):
     session_id: str
     pseudo: str
     score: int = 0
+    lives: int = DEFAULT_LIVES
+    combo: int = 0
     status: SessionStatus = SessionStatus.WAITING
     room_code: str | None = None
     created_at: datetime
