@@ -8,6 +8,7 @@ from app import di
 from app.transport.http.schemas.add_event import AddEventRequest, AddEventResponse
 from app.transport.http.schemas.finish_game import FinishGameResponse
 from app.transport.http.schemas.game_state import GameEventDTO, GameStateResponse
+from app.transport.http.schemas.list_rooms_games import ListGamesResponse, GameListItemDTO
 from app.transport.http.schemas.room_state import RoomGameDTO, RoomStateResponse
 from app.transport.http.schemas.start_game import StartGameRequest, StartGameResponse
 from app.usecase.add_game_event_usecase import AddGameEventUseCase
@@ -15,6 +16,7 @@ from app.usecase.finish_game_usecase import FinishGameUseCase
 from app.usecase.get_game_state_usecase import GetGameStateUseCase
 from app.usecase.get_room_state_usecase import GetRoomStateUseCase
 from app.usecase.start_game_usecase import StartGameUseCase
+from app.usecase.list_rooms_games_usecase import ListGamesUseCase
 
 router = APIRouter(prefix="/games", tags=["games"])
 
@@ -177,3 +179,33 @@ async def get_room_state(
         status=result["room"].status.value,
         games=games_dtos,
     )
+
+
+@router.get(
+    "/list",
+    status_code=status.HTTP_200_OK,
+    response_model=ListGamesResponse,
+)
+async def list_games(
+    status: str | None = None,
+    game_repo: GameRepository = Depends(di.get_game_repo),
+):
+    """Liste toutes les games filtrées par status."""
+    usecase = ListGamesUseCase(game_repo)
+
+    result = await usecase.execute(status=status)
+
+    games_dtos = [
+        GameListItemDTO(
+            game_id=game.id,
+            room_id=game.room_id,
+            player_id=game.player_id,
+            score=game.score,
+            status=game.status.value,
+            mode=game.mode.value,
+            started_at=game.started_at,
+        )
+        for game in result["games"]
+    ]
+
+    return ListGamesResponse(games=games_dtos)

@@ -80,3 +80,13 @@ class MysqlGameRepository(GameRepository):
                     (game_id,),
                 )
                 return row_to_game(await cursor.fetchone())
+
+    async def get_by_status(self, status: GameStatus) -> list[Game]:
+        async with self.pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT id, match_id, player_id, room_id, mode, score, status, started_at, finished_at FROM games WHERE status = %s ORDER BY started_at DESC",
+                    (status.value,),
+                )
+                rows = await cursor.fetchall()
+                return [row_to_game(row) for row in rows]

@@ -52,3 +52,13 @@ class MysqlRoomRepository(RoomRepository):
                     (code,),
                 )
                 return row_to_room(await cursor.fetchone())
+
+    async def get_by_status(self, status: RoomStatus) -> list[Room]:
+        async with self.pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT id, code, mode, status, created_at FROM rooms WHERE status = %s ORDER BY created_at DESC",
+                    (status.value,),
+                )
+                rows = await cursor.fetchall()
+                return [row_to_room(row) for row in rows]

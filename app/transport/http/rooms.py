@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from app.usecase.create_room_usecase import CreateRoomUseCase
 from app.usecase.join_room_usecase import JoinRoomUseCase
+from app.usecase.list_rooms_games_usecase import ListRoomsUseCase
 from app.domain.ports.game_repository import GameRepository
 from app.domain.ports.room_repository import RoomRepository
 from app import di
@@ -10,6 +11,7 @@ from app.transport.http.dtos import (
     JoinRoomResponse,
     RoomGameDTO,
 )
+from app.transport.http.schemas.list_rooms_games import ListRoomsResponse, RoomListItemDTO
 
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
@@ -73,3 +75,30 @@ async def join_room(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception:
         raise HTTPException(status_code=500, detail="Erreur lors de la jointure de la room")
+
+
+@router.get(
+    "/list",
+    status_code=status.HTTP_200_OK,
+    response_model=ListRoomsResponse,
+)
+async def list_rooms(
+    status: str | None = None,
+    room_repo: RoomRepository = Depends(di.get_room_repo),
+):
+    """Liste toutes les rooms filtrées par status."""
+    usecase = ListRoomsUseCase(room_repo)
+
+    result = await usecase.execute(status=status)
+
+    rooms_dtos = [
+        RoomListItemDTO(
+            room_code=room.code,
+            mode=room.mode.value,
+            status=room.status.value,
+            created_at=room.created_at,
+        )
+        for room in result["rooms"]
+    ]
+
+    return ListRoomsResponse(rooms=rooms_dtos)
