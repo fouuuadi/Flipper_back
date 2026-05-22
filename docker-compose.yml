@@ -52,6 +52,22 @@ services:
       timeout: 5s
       retries: 5
 
+  mqtt:
+    image: eclipse-mosquitto:2
+    container_name: flipper_mqtt
+    restart: unless-stopped
+    ports:
+      - "${MQTT_BROKER_PORT}:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    networks:
+      - flipper_net
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -p 1883 -t '$$SYS/broker/version' -C 1 -W 3 -i healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: .
@@ -64,6 +80,8 @@ services:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      mqtt:
         condition: service_healthy
     ports:
       - "${APP_PORT}:8080"
