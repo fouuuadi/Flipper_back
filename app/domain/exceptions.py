@@ -24,3 +24,7 @@ class GameAlreadyFinishedError(DomainError):
 
 class GameNotPlayableError(DomainError):
     pass
+
+
+class SessionNotFoundError(DomainError):
+    pass
