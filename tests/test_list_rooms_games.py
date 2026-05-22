@@ -1,7 +1,6 @@
 import pytest
 import pytest_asyncio
 import aiomysql
-from datetime import datetime
 from dotenv import load_dotenv
 import os
 import uuid
@@ -68,7 +67,7 @@ async def test_list_rooms_no_status_filter(db_pool):
     """Teste la liste de toutes les rooms sans filtre."""
     room_repo = MysqlRoomRepository(db_pool)
     
-    room = await room_repo.create(GameMode.SOLO)
+    await room_repo.create(GameMode.SOLO)
     
     usecase = ListRoomsUseCase(room_repo)
     result = await usecase.execute(status=None)
@@ -114,7 +113,7 @@ async def test_list_games_finished(db_pool):
     
     # Créer une game et la terminer
     game = await game_repo.create(player_id=player.id, room_id=room.id, mode=GameMode.SOLO)
-    finished_game = await game_repo.finish(game.id)
+    await game_repo.finish(game.id)
     
     # Lister les games FINISHED
     usecase = ListGamesUseCase(game_repo)
@@ -133,7 +132,7 @@ async def test_list_games_no_status_filter(db_pool):
     
     player = await player_repo.create(pseudo=f"test_player_nofilter_{uuid.uuid4().hex[:8]}")
     room = await room_repo.create(GameMode.SOLO)
-    game = await game_repo.create(player_id=player.id, room_id=room.id, mode=GameMode.SOLO)
+    await game_repo.create(player_id=player.id, room_id=room.id, mode=GameMode.SOLO)
     
     usecase = ListGamesUseCase(game_repo)
     result = await usecase.execute(status=None)

@@ -8,7 +8,7 @@ from app import di
 from app.transport.http.schemas.add_event import AddEventRequest, AddEventResponse
 from app.transport.http.schemas.finish_game import FinishGameResponse
 from app.transport.http.schemas.game_state import GameEventDTO, GameStateResponse
-from app.transport.http.schemas.list_rooms_games import ListGamesResponse, ListRoomsResponse, RoomListItemDTO, GameListItemDTO
+from app.transport.http.schemas.list_rooms_games import ListGamesResponse, GameListItemDTO
 from app.transport.http.schemas.room_state import RoomGameDTO, RoomStateResponse
 from app.transport.http.schemas.start_game import StartGameRequest, StartGameResponse
 from app.usecase.add_game_event_usecase import AddGameEventUseCase
@@ -16,7 +16,7 @@ from app.usecase.finish_game_usecase import FinishGameUseCase
 from app.usecase.get_game_state_usecase import GetGameStateUseCase
 from app.usecase.get_room_state_usecase import GetRoomStateUseCase
 from app.usecase.start_game_usecase import StartGameUseCase
-from app.usecase.list_rooms_games_usecase import ListRoomsUseCase, ListGamesUseCase
+from app.usecase.list_rooms_games_usecase import ListGamesUseCase
 
 router = APIRouter(prefix="/games", tags=["games"])
 

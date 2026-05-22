@@ -1,8 +1,6 @@
 from datetime import datetime
 from pydantic import BaseModel
 
-from app.domain.game import GameMode, GameStatus
-from app.domain.room import RoomStatus
 
 
 class RoomListItemDTO(BaseModel):
