@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from app.domain.game import Game, GameMode
+from app.domain.game import Game, GameMode, GameStatus
 
 
 class GameRepository(ABC):
@@ -22,4 +22,8 @@ class GameRepository(ABC):
 
     @abstractmethod
     async def finish(self, game_id: int) -> Game:
+        ...
+
+    @abstractmethod
+    async def get_by_status(self, status: GameStatus) -> list[Game]:
         ...
