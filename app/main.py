@@ -4,9 +4,11 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.config import get_settings
+from app.domain.ports.mqtt_gateway import MqttEvent
 from app.infrastructure.db.mysql import connect, disconnect
-from app.infrastructure.mqtt.aio_mqtt_gateway import AioMqttGateway, log_mqtt_event
+from app.infrastructure.mqtt.aio_mqtt_gateway import AioMqttGateway
 from app.infrastructure.redis import client as redis_client
+from app.usecase.handle_mqtt_event_usecase import HandleMqttEventUseCase
 from app import di
 from app.transport.http.error_handler import register_error_handlers
 from app.transport.http.health import router as health_router
@@ -26,11 +28,19 @@ async def lifespan(app: FastAPI):
     di.set_db_pool(db_pool)
     redis = await redis_client.connect(settings.redis_url)
     di.set_redis_client(redis)
+    handle_event_usecase = HandleMqttEventUseCase(
+        session_store=di.get_session_store(),
+        broadcaster=di.get_session_hub_manager(),
+    )
+
+    async def mqtt_handler(event: MqttEvent) -> None:
+        await handle_event_usecase.execute(event)
+
     mqtt_gateway = AioMqttGateway(
         host=settings.mqtt_broker_host,
         port=settings.mqtt_broker_port,
         topic_filter=settings.mqtt_topic_filter,
-        handler=log_mqtt_event,
+        handler=mqtt_handler,
     )
     await mqtt_gateway.start()
     di.set_mqtt_gateway(mqtt_gateway)

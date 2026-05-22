@@ -18,6 +18,7 @@ from app.infrastructure.db.player_repository import MysqlPlayerRepository
 from app.infrastructure.db.room_repository import MysqlRoomRepository
 from app.infrastructure.redis.session_store import RedisSessionStore
 from app.infrastructure.ws.room_hub import hub_manager
+from app.infrastructure.ws.session_hub import session_hub_manager
 
 _db_pool: aiomysql.Pool | None = None
 _redis_client: Redis | None = None
@@ -73,6 +74,11 @@ def get_session_store() -> SessionStore:
 def get_hub_manager():
     """Retourne le singleton HubManager pour WebSocket broadcasting."""
     return hub_manager
+
+
+def get_session_hub_manager():
+    """Retourne le singleton SessionHubManager (broadcast par session_id)."""
+    return session_hub_manager
 
 
 def get_mqtt_gateway() -> MqttGateway:
