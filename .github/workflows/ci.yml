@@ -60,6 +60,22 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Start MQTT broker
+        run: |
+          docker run -d --name flipper_mqtt -p 1883:1883 \
+            -v "${{ github.workspace }}/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro" \
+            eclipse-mosquitto:2
+          for i in $(seq 1 15); do
+            if docker exec flipper_mqtt mosquitto_sub -t '$SYS/broker/version' -C 1 -W 2 -i healthcheck 2>/dev/null; then
+              echo "MQTT broker ready"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "MQTT broker failed to become ready"
+          docker logs flipper_mqtt
+          exit 1
+
       - name: Initialize database
         env:
           DB_HOST: 127.0.0.1
@@ -81,6 +97,8 @@ jobs:
           DB_NAME: flipper
           MYSQL_DATABASE: flipper
           REDIS_URL: redis://127.0.0.1:6379
+          MQTT_BROKER_HOST: 127.0.0.1
+          MQTT_BROKER_PORT: 1883
         run: pytest tests/ -v
 
   architecture:

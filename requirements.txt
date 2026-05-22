@@ -8,6 +8,7 @@ python-dotenv==1.1.0
 pydantic==2.11.3
 pydantic-settings==2.14.1
 redis==7.4.0
+aiomqtt==2.5.1
 httpx==0.28.1
 pytest==8.3.5
 pytest-asyncio==0.26.0

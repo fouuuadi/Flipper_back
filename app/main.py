@@ -5,6 +5,7 @@ from fastapi import FastAPI
 
 from app.config import get_settings
 from app.infrastructure.db.mysql import connect, disconnect
+from app.infrastructure.mqtt.aio_mqtt_gateway import AioMqttGateway, log_mqtt_event
 from app.infrastructure.redis import client as redis_client
 from app import di
 from app.transport.http.error_handler import register_error_handlers
@@ -25,7 +26,16 @@ async def lifespan(app: FastAPI):
     di.set_db_pool(db_pool)
     redis = await redis_client.connect(settings.redis_url)
     di.set_redis_client(redis)
+    mqtt_gateway = AioMqttGateway(
+        host=settings.mqtt_broker_host,
+        port=settings.mqtt_broker_port,
+        topic_filter=settings.mqtt_topic_filter,
+        handler=log_mqtt_event,
+    )
+    await mqtt_gateway.start()
+    di.set_mqtt_gateway(mqtt_gateway)
     yield
+    await mqtt_gateway.stop()
     await redis_client.disconnect(redis)
     await disconnect()
 

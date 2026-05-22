@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
     redis_session_ttl_seconds: int = 1800
 
+    mqtt_broker_host: str = "localhost"
+    mqtt_broker_port: int = 1883
+    mqtt_topic_filter: str = "flipper/#"
+
 
 @lru_cache
 def get_settings() -> Settings:

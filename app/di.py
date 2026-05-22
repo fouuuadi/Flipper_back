@@ -10,6 +10,7 @@ from app.domain.ports.game_event_repository import GameEventRepository
 from app.domain.ports.game_repository import GameRepository
 from app.domain.ports.player_repository import PlayerRepository
 from app.domain.ports.room_repository import RoomRepository
+from app.domain.ports.mqtt_gateway import MqttGateway
 from app.domain.ports.session_store import SessionStore
 from app.infrastructure.db.game_event_repository import MysqlGameEventRepository
 from app.infrastructure.db.game_repository import MysqlGameRepository
@@ -20,6 +21,7 @@ from app.infrastructure.ws.room_hub import hub_manager
 
 _db_pool: aiomysql.Pool | None = None
 _redis_client: Redis | None = None
+_mqtt_gateway: MqttGateway | None = None
 
 
 def set_db_pool(pool: aiomysql.Pool):
@@ -30,6 +32,11 @@ def set_db_pool(pool: aiomysql.Pool):
 def set_redis_client(client: Redis):
     global _redis_client
     _redis_client = client
+
+
+def set_mqtt_gateway(gateway: MqttGateway):
+    global _mqtt_gateway
+    _mqtt_gateway = gateway
 
 
 def get_player_repo() -> PlayerRepository:
@@ -66,3 +73,9 @@ def get_session_store() -> SessionStore:
 def get_hub_manager():
     """Retourne le singleton HubManager pour WebSocket broadcasting."""
     return hub_manager
+
+
+def get_mqtt_gateway() -> MqttGateway:
+    if _mqtt_gateway is None:
+        raise RuntimeError("MQTT gateway not initialized")
+    return _mqtt_gateway
