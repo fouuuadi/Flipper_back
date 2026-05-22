@@ -9,12 +9,14 @@ from app.domain.exceptions import (
     PlayerAlreadyExistsError,
     PlayerNotFoundError,
     RoomNotFoundError,
+    SessionNotFoundError,
 )
 
 _NOT_FOUND_EXCEPTIONS = (
     PlayerNotFoundError,
     RoomNotFoundError,
     GameNotFoundError,
+    SessionNotFoundError,
 )
 
 _CONFLICT_EXCEPTIONS = (
