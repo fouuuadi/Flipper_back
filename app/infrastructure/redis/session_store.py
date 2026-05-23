@@ -4,6 +4,7 @@ from datetime import datetime
 
 from redis.asyncio import Redis
 
+from app.domain.game import GameMode
 from app.domain.ports.session_store import SessionStore
 from app.domain.session import Session, SessionStatus
 
@@ -50,6 +51,7 @@ class RedisSessionStore(SessionStore):
             "lives": str(session.lives),
             "combo": str(session.combo),
             "status": session.status.value,
+            "mode": session.mode.value,
             "room_code": session.room_code or "",
             "created_at": session.created_at.isoformat(),
         }
@@ -63,6 +65,7 @@ class RedisSessionStore(SessionStore):
             lives=int(data.get("lives", 3)),
             combo=int(data.get("combo", 0)),
             status=SessionStatus(data["status"]),
+            mode=GameMode(data.get("mode", GameMode.SOLO.value)),
             room_code=data.get("room_code") or None,
             created_at=datetime.fromisoformat(data["created_at"]),
         )

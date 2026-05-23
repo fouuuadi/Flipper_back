@@ -1,4 +1,6 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
+from typing import Any
 
 from app.domain.game import Game, GameMode, GameStatus
 
@@ -6,6 +8,30 @@ from app.domain.game import Game, GameMode, GameStatus
 class GameRepository(ABC):
     @abstractmethod
     async def create(self, player_id: int, room_id: int | None, mode: GameMode) -> Game:
+        ...
+
+    @abstractmethod
+    async def persist_finished_session(
+        self,
+        pseudo: str,
+        mode: GameMode,
+        score: int,
+        started_at: datetime,
+        finished_at: datetime,
+        events: list[dict[str, Any]],
+    ) -> tuple[int, int, int]:
+        """Atomic flush of a finished Redis session into the DB.
+
+        Inserts (upsert) Player, inserts the Game with status=FINISHED, and
+        batch-inserts GameEvents in a single DB transaction. Rolls back on any
+        failure.
+
+        Each event dict must carry `topic` (str), `payload` (dict), and
+        `occured_at` (ISO-8601 str). Events whose topic is unknown are
+        silently skipped.
+
+        Returns `(player_id, game_id, inserted_event_count)`.
+        """
         ...
 
     @abstractmethod

@@ -4,6 +4,7 @@ import random
 import uuid
 from datetime import datetime, timezone
 
+from app.domain.game import GameMode
 from app.domain.ports.session_store import SessionStore
 from app.domain.session import Session, SessionStatus
 
@@ -18,13 +19,19 @@ class CreateSessionUseCase:
     def __init__(self, session_store: SessionStore):
         self._session_store = session_store
 
-    async def execute(self, pseudo: str, room_code: str | None = None) -> Session:
+    async def execute(
+        self,
+        pseudo: str,
+        mode: GameMode = GameMode.SOLO,
+        room_code: str | None = None,
+    ) -> Session:
         formatted_pseudo = f"{pseudo.upper()}#{random.randint(0, 9999):04d}"
         session = Session(
             session_id=uuid.uuid4().hex,
             pseudo=formatted_pseudo,
             score=0,
             status=SessionStatus.WAITING,
+            mode=mode,
             room_code=room_code,
             created_at=datetime.now(timezone.utc),
         )

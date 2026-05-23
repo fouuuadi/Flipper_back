@@ -5,6 +5,8 @@ from enum import Enum
 
 from pydantic import BaseModel
 
+from app.domain.game import GameMode
+
 
 class SessionStatus(str, Enum):
     WAITING = "waiting"   # session créée, en attente du ready
@@ -23,5 +25,6 @@ class Session(BaseModel):
     lives: int = DEFAULT_LIVES
     combo: int = 0
     status: SessionStatus = SessionStatus.WAITING
+    mode: GameMode = GameMode.SOLO
     room_code: str | None = None
     created_at: datetime

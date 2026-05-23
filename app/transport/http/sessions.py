@@ -23,11 +23,16 @@ async def create_session(
     session_store: SessionStore = Depends(di.get_session_store),
 ):
     usecase = CreateSessionUseCase(session_store)
-    session = await usecase.execute(request.pseudo, request.room_code)
+    session = await usecase.execute(
+        pseudo=request.pseudo,
+        mode=request.mode,
+        room_code=request.room_code,
+    )
     return CreateSessionResponse(
         session_id=session.session_id,
         pseudo=session.pseudo,
         status=session.status.value,
+        mode=session.mode.value,
         room_code=session.room_code,
     )
 

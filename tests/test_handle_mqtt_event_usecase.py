@@ -30,6 +30,20 @@ class _RecordingBroadcaster:
         self.calls.append((session_id, message))
 
 
+class _InMemoryEventBuffer:
+    def __init__(self):
+        self.buffers: dict[str, list[dict]] = {}
+
+    async def push(self, session_id: str, event: dict) -> None:
+        self.buffers.setdefault(session_id, []).append(event)
+
+    async def read_all(self, session_id: str) -> list[dict]:
+        return list(self.buffers.get(session_id, []))
+
+    async def clear(self, session_id: str) -> None:
+        self.buffers.pop(session_id, None)
+
+
 def _session(session_id: str = "abc", score: int = 0, lives: int = 3, combo: int = 0) -> Session:
     return Session(
         session_id=session_id,
@@ -49,7 +63,7 @@ async def test_bumper_hit_updates_score_combo_and_broadcasts():
     store = _InMemorySessionStore(session)
     broadcaster = _RecordingBroadcaster()
 
-    await HandleMqttEventUseCase(store, broadcaster).execute(
+    await HandleMqttEventUseCase(store, broadcaster, _InMemoryEventBuffer()).execute(
         MqttEvent(
             topic="flipper/bumper/hit",
             payload={"bumperId": 7, "points": 50, "sessionId": "abc"},
@@ -73,7 +87,7 @@ async def test_bonus_adds_points_without_touching_combo():
     store = _InMemorySessionStore(session)
     broadcaster = _RecordingBroadcaster()
 
-    await HandleMqttEventUseCase(store, broadcaster).execute(
+    await HandleMqttEventUseCase(store, broadcaster, _InMemoryEventBuffer()).execute(
         MqttEvent(
             topic="flipper/bonus",
             payload={"type": "skill_shot", "points": 200, "sessionId": "abc"},
@@ -93,7 +107,7 @@ async def test_ball_lost_decrements_lives_and_resets_combo():
     store = _InMemorySessionStore(session)
     broadcaster = _RecordingBroadcaster()
 
-    await HandleMqttEventUseCase(store, broadcaster).execute(
+    await HandleMqttEventUseCase(store, broadcaster, _InMemoryEventBuffer()).execute(
         MqttEvent(topic="flipper/ball/lost", payload={"sessionId": "abc"})
     )
 
@@ -110,7 +124,7 @@ async def test_ball_lost_floors_at_zero():
     session = _session(lives=0)
     store = _InMemorySessionStore(session)
 
-    await HandleMqttEventUseCase(store, _RecordingBroadcaster()).execute(
+    await HandleMqttEventUseCase(store, _RecordingBroadcaster(), _InMemoryEventBuffer()).execute(
         MqttEvent(topic="flipper/ball/lost", payload={"sessionId": "abc"})
     )
 
@@ -124,7 +138,7 @@ async def test_game_over_sets_status_and_broadcasts_final_score():
     store = _InMemorySessionStore(session)
     broadcaster = _RecordingBroadcaster()
 
-    await HandleMqttEventUseCase(store, broadcaster).execute(
+    await HandleMqttEventUseCase(store, broadcaster, _InMemoryEventBuffer()).execute(
         MqttEvent(topic="flipper/game/over", payload={"sessionId": "abc"})
     )
 
@@ -141,7 +155,7 @@ async def test_unknown_topic_is_ignored():
     store = _InMemorySessionStore(session)
     broadcaster = _RecordingBroadcaster()
 
-    await HandleMqttEventUseCase(store, broadcaster).execute(
+    await HandleMqttEventUseCase(store, broadcaster, _InMemoryEventBuffer()).execute(
         MqttEvent(topic="flipper/something/unknown", payload={"sessionId": "abc"})
     )
 
@@ -155,7 +169,7 @@ async def test_missing_session_id_is_dropped():
     store = _InMemorySessionStore(_session())
     broadcaster = _RecordingBroadcaster()
 
-    await HandleMqttEventUseCase(store, broadcaster).execute(
+    await HandleMqttEventUseCase(store, broadcaster, _InMemoryEventBuffer()).execute(
         MqttEvent(topic="flipper/bumper/hit", payload={"points": 10})
     )
 
@@ -167,7 +181,7 @@ async def test_unknown_session_is_dropped():
     store = _InMemorySessionStore()  # empty
     broadcaster = _RecordingBroadcaster()
 
-    await HandleMqttEventUseCase(store, broadcaster).execute(
+    await HandleMqttEventUseCase(store, broadcaster, _InMemoryEventBuffer()).execute(
         MqttEvent(
             topic="flipper/bumper/hit",
             payload={"sessionId": "ghost", "points": 10},
@@ -175,3 +189,45 @@ async def test_unknown_session_is_dropped():
     )
 
     assert broadcaster.calls == []
+
+
+@pytest.mark.asyncio
+async def test_handled_events_are_pushed_to_buffer():
+    session = _session()
+    store = _InMemorySessionStore(session)
+    buffer = _InMemoryEventBuffer()
+
+    usecase = HandleMqttEventUseCase(store, _RecordingBroadcaster(), buffer)
+    await usecase.execute(
+        MqttEvent(
+            topic="flipper/bumper/hit",
+            payload={"sessionId": "abc", "points": 100, "bumperId": 3},
+        )
+    )
+    await usecase.execute(
+        MqttEvent(topic="flipper/ball/lost", payload={"sessionId": "abc"})
+    )
+
+    buffered = await buffer.read_all("abc")
+    assert len(buffered) == 2
+    assert buffered[0]["topic"] == "flipper/bumper/hit"
+    assert buffered[0]["payload"]["bumperId"] == 3
+    assert "occured_at" in buffered[0]
+    assert buffered[1]["topic"] == "flipper/ball/lost"
+
+
+@pytest.mark.asyncio
+async def test_dropped_events_are_not_pushed_to_buffer():
+    store = _InMemorySessionStore(_session())
+    buffer = _InMemoryEventBuffer()
+
+    # missing sessionId → drop
+    await HandleMqttEventUseCase(store, _RecordingBroadcaster(), buffer).execute(
+        MqttEvent(topic="flipper/bumper/hit", payload={"points": 10})
+    )
+    # unknown topic → drop
+    await HandleMqttEventUseCase(store, _RecordingBroadcaster(), buffer).execute(
+        MqttEvent(topic="flipper/garbage", payload={"sessionId": "abc"})
+    )
+
+    assert await buffer.read_all("abc") == []
