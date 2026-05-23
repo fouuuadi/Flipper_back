@@ -87,6 +87,7 @@ jobs:
           mysql -h 127.0.0.1 -u flipper -pflipperpass flipper < db/init/002_create_rooms.sql
           mysql -h 127.0.0.1 -u flipper -pflipperpass flipper < db/init/003_create_games.sql
           mysql -h 127.0.0.1 -u flipper -pflipperpass flipper < db/init/004_create_game_events.sql
+          mysql -h 127.0.0.1 -u flipper -pflipperpass flipper < db/init/005_alter_games_room_id_nullable.sql
 
       - name: Run tests
         env:

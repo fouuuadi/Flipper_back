@@ -1,8 +1,20 @@
+from datetime import datetime
+from typing import Any
+
 import aiomysql
 
 from app.domain.game import Game, GameMode, GameStatus
+from app.domain.game_event import GameEventType
 from app.domain.ports.game_repository import GameRepository
 from app.infrastructure.db.mappers.game_mapper import row_to_game
+
+_TOPIC_TO_EVENT_TYPE: dict[str, GameEventType] = {
+    "flipper/bumper/hit": GameEventType.BUMPER_HIT,
+    "flipper/bonus": GameEventType.BONUS,
+    "flipper/ball/lost": GameEventType.BALL_LOST,
+    "flipper/flipper/hit": GameEventType.FLIPPER_HIT,
+    "flipper/game/over": GameEventType.GAME_OVER,
+}
 
 
 class MysqlGameRepository(GameRepository):
@@ -90,3 +102,96 @@ class MysqlGameRepository(GameRepository):
                 )
                 rows = await cursor.fetchall()
                 return [row_to_game(row) for row in rows]
+
+    async def persist_finished_session(
+        self,
+        pseudo: str,
+        mode: GameMode,
+        score: int,
+        started_at: datetime,
+        finished_at: datetime,
+        events: list[dict[str, Any]],
+    ) -> tuple[int, int, int]:
+        event_rows = self._build_event_rows(events)
+        async with self.pool.acquire() as conn:
+            try:
+                await conn.begin()
+                async with conn.cursor(aiomysql.DictCursor) as cursor:
+                    player_id = await self._upsert_player(cursor, pseudo)
+                    game_id = await self._insert_finished_game(
+                        cursor, player_id, mode, score, started_at, finished_at
+                    )
+                    inserted_events = await self._insert_event_rows(cursor, game_id, event_rows)
+                await conn.commit()
+                return player_id, game_id, inserted_events
+            except Exception:
+                await conn.rollback()
+                raise
+
+    @staticmethod
+    def _build_event_rows(events: list[dict[str, Any]]) -> list[tuple]:
+        rows: list[tuple] = []
+        for ev in events:
+            topic = ev.get("topic")
+            event_type = _TOPIC_TO_EVENT_TYPE.get(topic) if isinstance(topic, str) else None
+            if event_type is None:
+                continue
+            payload = ev.get("payload") or {}
+            try:
+                points = int(payload.get("points", 0))
+            except (TypeError, ValueError):
+                points = 0
+            occured_at = ev.get("occured_at")
+            if isinstance(occured_at, str):
+                try:
+                    occured_at = datetime.fromisoformat(occured_at)
+                except ValueError:
+                    occured_at = datetime.utcnow()
+            elif not isinstance(occured_at, datetime):
+                occured_at = datetime.utcnow()
+            rows.append((event_type.value, points, occured_at))
+        return rows
+
+    @staticmethod
+    async def _upsert_player(cursor, pseudo: str) -> int:
+        await cursor.execute("SELECT id FROM players WHERE pseudo = %s", (pseudo,))
+        row = await cursor.fetchone()
+        if row:
+            return row["id"]
+        await cursor.execute("INSERT INTO players (pseudo) VALUES (%s)", (pseudo,))
+        return cursor.lastrowid
+
+    @staticmethod
+    async def _insert_finished_game(
+        cursor,
+        player_id: int,
+        mode: GameMode,
+        score: int,
+        started_at: datetime,
+        finished_at: datetime,
+    ) -> int:
+        await cursor.execute(
+            "INSERT INTO games (player_id, room_id, mode, score, status, started_at, finished_at) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            (
+                player_id,
+                None,
+                mode.value,
+                score,
+                GameStatus.FINISHED.value,
+                started_at,
+                finished_at,
+            ),
+        )
+        return cursor.lastrowid
+
+    @staticmethod
+    async def _insert_event_rows(cursor, game_id: int, event_rows: list[tuple]) -> int:
+        if not event_rows:
+            return 0
+        rows_with_game = [(game_id,) + row for row in event_rows]
+        await cursor.executemany(
+            "INSERT INTO game_events (game_id, type, points, occured_at) VALUES (%s, %s, %s, %s)",
+            rows_with_game,
+        )
+        return len(rows_with_game)

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 
+from app.domain.ports.event_buffer import EventBuffer
 from app.domain.ports.mqtt_gateway import MqttEvent
 from app.domain.ports.session_event_broadcaster import SessionEventBroadcaster
 from app.domain.ports.session_store import SessionStore
@@ -19,17 +21,20 @@ class HandleMqttEventUseCase:
     """Bridge MQTT events → Redis session update → WS broadcast.
 
     Each event carries a `sessionId` in its payload; we load the matching
-    Redis session, mutate it according to the topic, persist, and notify the
-    connected WS client.
+    Redis session, mutate it according to the topic, persist, archive the
+    event in the per-session buffer (consumed at flush time by
+    `FinishAndPersistUseCase`), and notify the connected WS client.
     """
 
     def __init__(
         self,
         session_store: SessionStore,
         broadcaster: SessionEventBroadcaster,
+        event_buffer: EventBuffer,
     ):
         self._session_store = session_store
         self._broadcaster = broadcaster
+        self._event_buffer = event_buffer
 
     async def execute(self, event: MqttEvent) -> None:
         session_id = event.payload.get("sessionId")
@@ -51,6 +56,14 @@ class HandleMqttEventUseCase:
             return  # unknown / ignored topic — session left untouched
 
         await self._session_store.update(session)
+        await self._event_buffer.push(
+            session_id,
+            {
+                "topic": event.topic,
+                "payload": event.payload,
+                "occured_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
         await self._broadcaster.broadcast_to_session(session_id, ws_message)
 
     @staticmethod

@@ -15,6 +15,7 @@ from app.transport.http.health import router as health_router
 from app.transport.http.root import router as root_router
 from app.transport.http.games import router as games_router
 from app.transport.http.rooms import router as rooms_router
+from app.transport.http.scores import router as scores_router
 from app.transport.http.sessions import router as sessions_router
 from app.transport.ws.handler import router as ws_router
 
@@ -31,6 +32,7 @@ async def lifespan(app: FastAPI):
     handle_event_usecase = HandleMqttEventUseCase(
         session_store=di.get_session_store(),
         broadcaster=di.get_session_hub_manager(),
+        event_buffer=di.get_event_buffer(),
     )
 
     async def mqtt_handler(event: MqttEvent) -> None:
@@ -59,6 +61,7 @@ app.include_router(health_router)
 app.include_router(games_router)
 app.include_router(rooms_router)
 app.include_router(sessions_router)
+app.include_router(scores_router)
 
 # Routes WebSocket
 app.include_router(ws_router)
