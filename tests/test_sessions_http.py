@@ -1,5 +1,4 @@
 import os
-import re
 
 import pytest
 import pytest_asyncio
@@ -34,13 +33,13 @@ async def http_client():
 
 
 @pytest.mark.asyncio
-async def test_create_session_returns_201_with_session_payload(redis_client, http_client):
+async def test_create_session_applies_default_hashtag(redis_client, http_client):
     response = await http_client.post("/sessions", json={"pseudo": "abc"})
 
     assert response.status_code == 201
     body = response.json()
     assert "session_id" in body
-    assert re.fullmatch(r"ABC#\d{4}", body["pseudo"])
+    assert body["pseudo"] == "ABC#HETIC"
     assert body["status"] == "waiting"
     assert body["room_code"] is None
 
@@ -48,6 +47,14 @@ async def test_create_session_returns_201_with_session_payload(redis_client, htt
     stored = await redis_client.hgetall(SESSION_KEY_PREFIX + body["session_id"])
     assert stored["pseudo"] == body["pseudo"]
     assert stored["status"] == "waiting"
+
+
+@pytest.mark.asyncio
+async def test_create_session_keeps_explicit_hashtag(redis_client, http_client):
+    response = await http_client.post("/sessions", json={"pseudo": "foo#bar12"})
+
+    assert response.status_code == 201
+    assert response.json()["pseudo"] == "FOO#BAR12"
 
 
 @pytest.mark.asyncio
@@ -59,11 +66,18 @@ async def test_create_session_with_room_code(redis_client, http_client):
     assert response.status_code == 201
     body = response.json()
     assert body["room_code"] == "ROOM01"
+    assert body["pseudo"] == "XYZ#HETIC"
 
 
+@pytest.mark.parametrize(
+    "bad_pseudo",
+    ["AB", "ABCD", "abc#x", "abc#toolong", "abc-#hello", "###"],
+)
 @pytest.mark.asyncio
-async def test_create_session_rejects_pseudo_too_long(redis_client, http_client):
-    response = await http_client.post("/sessions", json={"pseudo": "TOOLONG"})
+async def test_create_session_rejects_invalid_pseudo_format(
+    redis_client, http_client, bad_pseudo
+):
+    response = await http_client.post("/sessions", json={"pseudo": bad_pseudo})
     assert response.status_code == 422
 
 

@@ -1,7 +1,6 @@
-import re
-
 import pytest
 
+from app.domain.exceptions import InvalidPseudoError
 from app.domain.session import Session, SessionStatus
 from app.usecase.create_session_usecase import CreateSessionUseCase
 
@@ -30,18 +29,28 @@ class _InMemorySessionStore:
 
 
 @pytest.mark.asyncio
-async def test_create_session_returns_session_with_formatted_pseudo():
+async def test_create_session_applies_default_hashtag_when_missing():
     store = _InMemorySessionStore()
     usecase = CreateSessionUseCase(store)
 
     session = await usecase.execute("abc")
 
-    assert re.fullmatch(r"ABC#\d{4}", session.pseudo)
+    assert session.pseudo == "ABC#HETIC"
     assert session.score == 0
     assert session.status == SessionStatus.WAITING
     assert session.room_code is None
     assert len(store.created) == 1
     assert store.created[0].session_id == session.session_id
+
+
+@pytest.mark.asyncio
+async def test_create_session_keeps_user_provided_hashtag():
+    store = _InMemorySessionStore()
+    usecase = CreateSessionUseCase(store)
+
+    session = await usecase.execute("foo#bar12")
+
+    assert session.pseudo == "FOO#BAR12"
 
 
 @pytest.mark.asyncio
@@ -52,6 +61,8 @@ async def test_create_session_generates_unique_ids():
     s1 = await usecase.execute("abc")
     s2 = await usecase.execute("abc")
 
+    # Same pseudo (no random suffix anymore) but distinct session ids.
+    assert s1.pseudo == s2.pseudo == "ABC#HETIC"
     assert s1.session_id != s2.session_id
 
 
@@ -63,4 +74,19 @@ async def test_create_session_with_room_code():
     session = await usecase.execute("xyz", room_code="ROOM01")
 
     assert session.room_code == "ROOM01"
-    assert session.pseudo.startswith("XYZ#")
+    assert session.pseudo == "XYZ#HETIC"
+
+
+@pytest.mark.asyncio
+async def test_create_session_rejects_invalid_pseudo():
+    store = _InMemorySessionStore()
+    usecase = CreateSessionUseCase(store)
+
+    with pytest.raises(InvalidPseudoError):
+        await usecase.execute("AB")  # too short
+
+    with pytest.raises(InvalidPseudoError):
+        await usecase.execute("abc#xy")  # hashtag too short
+
+    with pytest.raises(InvalidPseudoError):
+        await usecase.execute("abc#toolong")  # hashtag too long

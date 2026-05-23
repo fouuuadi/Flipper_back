@@ -66,11 +66,14 @@
 ### Phase 1 — Enregistrement (HTTP pur, avant la partie)
 
 #### `POST /sessions`
-- **Reçoit** : `{ pseudo: "ABC", mode: "solo" | "1v1", room_code?: "..." }`
-- **Génère** : `session_id` (UUID hex) + formate le pseudo en `ABC#4521` (suffixe 4 chiffres aléatoires)
-- **Crée** : une session Redis (`Hash session:{session_id}`) avec TTL **30 min sliding** (rafraîchi à chaque read/update)
-- **Retourne** : `{ session_id, pseudo, status: "waiting", mode, room_code }`
-- ⚠️ **Pas d'écriture en DB à ce stade**
+- **Reçoit** : `{ pseudo: "ABC" | "ABC#XYZ12", mode: "solo" | "1v1", room_code?: "..." }`
+- **Normalise** le pseudo via `app/domain/pseudo.py` : uppercase + ajout de `#HETIC` si le hashtag est absent. Format final garanti `^[A-Z0-9]{3}#[A-Z0-9]{5}$`.
+- **Génère** un `session_id` (UUID hex) — c'est lui qui distingue les sessions, pas le pseudo.
+- **Crée** une session Redis (`Hash session:{session_id}`) avec TTL **30 min sliding** (rafraîchi à chaque read/update).
+- **Retourne** : `{ session_id, pseudo: "ABC#HETIC" (ou le hashtag fourni), status: "waiting", mode, room_code }`.
+- ⚠️ **Pas d'écriture en DB à ce stade**.
+
+> ⚠️ Conséquence du default `HETIC` : deux joueurs qui ne fournissent pas de hashtag auront tous les deux `ABC#HETIC` → ils mergeront sur le même Player au flush DB. Pour le mode 1v1 cette collision est interdite (cf. issue #59, règle d'unicité par room). Pour le mode solo on garde l'idempotence — la règle "best score wins" (issue #96) viendra distinguer le meilleur résultat.
 
 Champs Redis Hash :
 ```
@@ -150,6 +153,7 @@ Cas spéciaux :
 | Couche | Composant | Rôle |
 |---|---|---|
 | **Domain** | `Session`, `Player`, `Game`, `GameEvent`, `Room`, `Match` | Entités Pydantic |
+| | `pseudo.py` | Helper format `XXX#YYYYY` + `DEFAULT_HASHTAG="HETIC"` (utilisé par tous les use cases qui acceptent un pseudo en entrée) |
 | **Domain Ports** | `SessionStore` | CRUD session Redis (Hash) |
 | | `EventBuffer` | Push/read events MQTT (Redis List) |
 | | `GameRepository`, `PlayerRepository`, `GameEventRepository`, `RoomRepository` | CRUD DB |
@@ -164,7 +168,8 @@ Cas spéciaux :
 | **Use cases** | `CreateSessionUseCase`, `ReadyUpUseCase` | Avant la partie |
 | | `HandleMqttEventUseCase` | Pendant la partie |
 | | `FinishAndPersistUseCase` | Fin de partie |
-| **Transport HTTP** | `sessions.py`, `scores.py`, `rooms.py`, `games.py` | Endpoints REST |
+| | `CreateOrGetPlayerUseCase`, `GetPlayerUseCase` | Hors flow — gestion du profil joueur |
+| **Transport HTTP** | `sessions.py`, `scores.py`, `players.py`, `rooms.py`, `games.py` | Endpoints REST |
 | **Transport WS** | `handler.py` | `/ws` (session_id XOR room_code) |
 
 ---
@@ -177,8 +182,32 @@ Cas spéciaux :
 | 2. Sessions endpoints HTTP | ✅ Mergé | #92 |
 | 3. MQTT broker bridge | ✅ Mergé | #93 |
 | 4. Bridge MQTT → Redis → WS | ✅ Mergé | #94 |
-| 5. POST /scores + EventBuffer | 🚧 En cours | feat/post-scores-flush |
+| 5. POST /scores + EventBuffer | ✅ Mergé | #95 |
+| 5b. `/players` CRUD + format pseudo unifié | 🚧 En cours | feat/players-crud-and-pseudo-format |
 | 6. Migration MySQL → PostgreSQL | 📌 À faire | #89 |
+| 7. Best score wins (solo) | 📌 À faire | #96 |
+
+---
+
+## Endpoints hors flow principal
+
+### `/players` — gestion du profil joueur
+
+Indépendant du cycle d'une partie. Utile pour récupérer un profil existant côté frontend (page profil, historique, etc.).
+
+| Endpoint | Quoi | Code |
+|---|---|---|
+| `POST /players` | Idempotent. Crée le Player si pas en DB, sinon renvoie l'existant. Body `{ pseudo: "ABC" }` ou `{ pseudo: "ABC#XYZ12" }`. | `200` toujours |
+| `GET /players/{id}` | Lookup par id. | `200` ou `404` |
+| `GET /players?pseudo=X` | Lookup par pseudo (normalisé via le helper). | `200` ou `404` |
+
+Toutes les routes appliquent `normalize_and_validate` sur le pseudo → uppercase + default `HETIC`. Format invalide → `422 InvalidPseudoError`.
+
+> **Note d'architecture** : les Players sont alimentés par 2 canaux qui doivent rester cohérents :
+> 1. `POST /players` (cette route) — création/récupération directe par le frontend
+> 2. `POST /scores` (flush de fin de partie) — upsert implicite via `persist_finished_session`
+>
+> Les deux passent par le même format `XXX#YYYYY`, donc un joueur qui a fait `POST /sessions` puis `POST /scores` puis `POST /players` aura **une seule ligne en DB** (idempotence via `get_by_pseudo`).
 
 ---
 
@@ -192,11 +221,11 @@ DB_HOST=127.0.0.1 DB_PORT=3306 DB_USER=flipper_user DB_PASSWORD=flipper_password
   MQTT_BROKER_HOST=127.0.0.1 MQTT_BROKER_PORT=1883 \
   python3 -m app.main
 
-# 2. Créer une session
+# 2. Créer une session (le pseudo "ABC" se normalise en "ABC#HETIC")
 curl -X POST localhost:8080/sessions \
   -H 'Content-Type: application/json' \
   -d '{"pseudo":"ABC","mode":"solo"}'
-# → { "session_id": "XYZ...", "pseudo": "ABC#1234", "status": "waiting", "mode": "solo" }
+# → { "session_id": "XYZ...", "pseudo": "ABC#HETIC", "status": "waiting", "mode": "solo" }
 
 # 3. Ouvrir un WebSocket dans un autre terminal
 wscat -c "ws://localhost:8080/ws?session_id=XYZ..."

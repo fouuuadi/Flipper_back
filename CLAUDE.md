@@ -59,7 +59,8 @@ app/
 │   ├── player.py, room.py, game.py    # ✅ Entités Pydantic existantes
 │   ├── game_event.py, match.py        # ✅ Garder
 │   ├── session.py                     # 🆕 Entité Session (éphémère, pas en DB)
-│   ├── exceptions.py                  # ✅ DomainError + 6 filles
+│   ├── pseudo.py                      # 🆕 Helper format pseudo XXX#YYYYY + DEFAULT_HASHTAG=HETIC
+│   ├── exceptions.py                  # ✅ DomainError + InvalidPseudoError + filles
 │   └── ports/                         # ✅ Interfaces ABC existantes
 │       ├── player_repository.py       # ✅ Garder
 │       ├── game_repository.py         # ✅ Garder
@@ -92,7 +93,10 @@ app/
 │   ├── finish_game_usecase.py         # 🔄 Adapter : flush Redis → DB (seul moment d'écriture)
 │   ├── create_session_usecase.py      # 🆕 Créer session éphémère (pseudo → Redis)
 │   ├── ready_up_usecase.py            # 🆕 Marquer joueur "prêt" + trigger game:start si tous prêts
-│   └── handle_mqtt_event_usecase.py   # 🆕 Recevoir event MQTT → mettre à jour session → broadcaster WS
+│   ├── handle_mqtt_event_usecase.py   # 🆕 Recevoir event MQTT → mettre à jour session → broadcaster WS
+│   ├── finish_and_persist_usecase.py  # 🆕 Flush session Redis → DB atomique (POST /scores)
+│   ├── create_or_get_player_usecase.py # 🆕 Upsert idempotent Player par pseudo
+│   └── get_player_usecase.py          # 🆕 Lookup Player par id ou pseudo
 └── transport/
     ├── http/
     │   ├── root.py, health.py         # ✅
@@ -100,6 +104,7 @@ app/
     │   ├── games.py                   # ✅
     │   ├── sessions.py                # 🆕 POST /sessions, POST /sessions/{id}/ready
     │   ├── scores.py                  # 🆕 POST /scores (flush final → DB)
+    │   ├── players.py                 # 🆕 POST /players, GET /players/{id}, GET /players?pseudo=X
     │   ├── error_handler.py           # ✅
     │   ├── dtos.py                    # ✅ (étendre)
     │   └── schemas/                   # ✅ (étendre)

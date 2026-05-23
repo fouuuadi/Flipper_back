@@ -28,3 +28,7 @@ class GameNotPlayableError(DomainError):
 
 class SessionNotFoundError(DomainError):
     pass
+
+
+class InvalidPseudoError(DomainError):
+    pass
