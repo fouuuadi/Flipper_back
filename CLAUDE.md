@@ -65,8 +65,10 @@ app/
 │       ├── game_repository.py         # ✅ Garder
 │       ├── game_event_repository.py   # ✅ Garder
 │       ├── room_repository.py         # ✅ Garder
-│       ├── session_store.py           # 🆕 Port ABC pour sessions Redis
-│       └── mqtt_gateway.py            # 🆕 Port ABC pour le bridge MQTT
+│       ├── session_store.py           # ✅ Port ABC pour sessions Redis
+│       ├── mqtt_gateway.py            # ✅ Port ABC pour le bridge MQTT
+│       ├── session_event_broadcaster.py  # ✅ Port ABC pour broadcaster par session_id
+│       └── event_buffer.py            # 🆕 Port ABC pour buffer d'events MQTT en Redis
 ├── infrastructure/
 │   ├── db/
 │   │   ├── postgres.py                # 🔄 Remplace mysql.py (pool asyncpg)
@@ -243,37 +245,40 @@ APP_PORT=8000
 
 > Chaque étape = 1 branche = 1 PR. Ne pas tout faire d'un coup.
 
-### Étape 1 — Infrastructure Redis
-- [ ] Ajouter Redis au `docker-compose.yml`
-- [ ] `infrastructure/redis/client.py` — connexion async
-- [ ] `domain/ports/session_store.py` — port ABC
-- [ ] `infrastructure/redis/session_store.py` — implémentation
-- [ ] Wiring dans `di.py`
-- [ ] Tests unitaires (mock) + intégration (Redis réel)
+### Étape 1 — Infrastructure Redis ✅ (PR #91)
+- [x] Ajouter Redis au `docker-compose.yml`
+- [x] `infrastructure/redis/client.py` — connexion async
+- [x] `domain/ports/session_store.py` — port ABC
+- [x] `infrastructure/redis/session_store.py` — implémentation (Hash + sliding TTL)
+- [x] Wiring dans `di.py`
+- [x] Tests unitaires (mock) + intégration (Redis réel)
 
-### Étape 2 — Sessions endpoints
-- [ ] `usecase/create_session_usecase.py`
-- [ ] `usecase/ready_up_usecase.py`
-- [ ] `transport/http/sessions.py` — POST /sessions, POST /sessions/{id}/ready
-- [ ] Tests
+### Étape 2 — Sessions endpoints ✅ (PR #92)
+- [x] `usecase/create_session_usecase.py` (UUID + pseudo formaté ABC#4521)
+- [x] `usecase/ready_up_usecase.py`
+- [x] `transport/http/sessions.py` — POST /sessions, POST /sessions/{id}/ready
+- [x] Tests
 
-### Étape 3 — MQTT bridge
-- [ ] Ajouter Mosquitto au `docker-compose.yml`
-- [ ] `domain/ports/mqtt_gateway.py` — port ABC
-- [ ] `infrastructure/mqtt/mqtt_service.py` — subscribe + dispatch
-- [ ] `usecase/handle_mqtt_event_usecase.py`
-- [ ] Connecter au lifespan FastAPI
-- [ ] Tests (mock broker)
+### Étape 3 — MQTT bridge ✅ (PR #93)
+- [x] Mosquitto dans `docker-compose.yml` + CI
+- [x] `domain/ports/mqtt_gateway.py` — port ABC (MqttEvent + handler Protocol)
+- [x] `infrastructure/mqtt/aio_mqtt_gateway.py` — subscribe `flipper/#` + dispatch JSON
+- [x] Connecter au lifespan FastAPI
+- [x] Tests d'intégration broker réel
 
-### Étape 4 — Bridge MQTT → Redis → WebSocket
-- [ ] Event MQTT reçu → update session Redis → broadcast WS
-- [ ] Adapter `room_hub.py` pour supporter session_id
-- [ ] Tests end-to-end
+### Étape 4 — Bridge MQTT → Redis → WebSocket ✅ (PR #94)
+- [x] `usecase/handle_mqtt_event_usecase.py` — route topic → mute session → broadcast
+- [x] `domain/ports/session_event_broadcaster.py` + `infrastructure/ws/session_hub.py`
+- [x] `/ws` accepte `?session_id=` OU `?room_code=` (XOR)
+- [x] Session étendue avec `lives` + `combo`
+- [x] Tests unit (use case, hub)
 
-### Étape 5 — Flush final (POST /scores)
+### Étape 5 — Flush final (POST /scores) 🚧 (PR #88 — branche `feat/post-scores-flush`)
+- [ ] `domain/ports/event_buffer.py` + `infrastructure/redis/event_buffer.py` (Redis List, accumule events MQTT pendant la partie)
+- [ ] `mode` ajouté à Session
+- [ ] `GameRepository.persist_finished_session(...)` — transaction atomique (Player upsert + Game + GameEvents batch)
 - [ ] `usecase/finish_and_persist_usecase.py`
-- [ ] `transport/http/scores.py`
-- [ ] Lire session Redis → batch INSERT DB → cleanup Redis
+- [ ] `transport/http/scores.py` — POST /scores
 - [ ] Tests
 
 ### Étape 6 — Migration MySQL → PostgreSQL
@@ -308,6 +313,10 @@ APP_PORT=8000
 - [x] Docker Compose (MySQL + phpMyAdmin + backend)
 - [x] ruff + import-linter (4 contracts)
 - [x] Redis sessions (port + Redis Hash impl + sliding TTL)
-- [ ] MQTT bridge
-- [ ] POST /scores (flush final)
+- [x] Sessions HTTP endpoints (POST /sessions, POST /sessions/{id}/ready)
+- [x] MQTT broker bridge (Mosquitto + aiomqtt + port + impl)
+- [x] Bridge MQTT → Redis → WebSocket (session-scoped broadcast)
+- [x] SessionEventBroadcaster port + SessionHubManager
+- [ ] POST /scores (flush final) — en cours sur `feat/post-scores-flush`
+- [ ] EventBuffer port + Redis List impl — en cours sur `feat/post-scores-flush`
 - [ ] Migration PostgreSQL
