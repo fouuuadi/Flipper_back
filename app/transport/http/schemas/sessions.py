@@ -4,9 +4,13 @@ from pydantic import BaseModel, Field
 
 from app.domain.game import GameMode
 
+# Accept 3 alphanum, optionally followed by "#" + exactly 5 alphanum.
+# Normalisation (uppercase + default HETIC) happens in the use case.
+PSEUDO_INPUT_PATTERN = r"^[A-Za-z0-9]{3}(#[A-Za-z0-9]{5})?$"
+
 
 class CreateSessionRequest(BaseModel):
-    pseudo: str = Field(min_length=1, max_length=3)
+    pseudo: str = Field(pattern=PSEUDO_INPUT_PATTERN)
     mode: GameMode = GameMode.SOLO
     room_code: str | None = None
 
