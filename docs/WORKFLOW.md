@@ -169,7 +169,8 @@ Cas spéciaux :
 | | `HandleMqttEventUseCase` | Pendant la partie |
 | | `FinishAndPersistUseCase` | Fin de partie |
 | | `CreateOrGetPlayerUseCase`, `GetPlayerUseCase` | Hors flow — gestion du profil joueur |
-| **Transport HTTP** | `sessions.py`, `scores.py`, `players.py`, `rooms.py`, `games.py` | Endpoints REST |
+| | `GetLeaderboardUseCase` | Hors flow — top scores |
+| **Transport HTTP** | `sessions.py`, `scores.py`, `players.py`, `leaderboard.py`, `rooms.py`, `games.py` | Endpoints REST |
 | **Transport WS** | `handler.py` | `/ws` (session_id XOR room_code) |
 
 ---
@@ -183,13 +184,32 @@ Cas spéciaux :
 | 3. MQTT broker bridge | ✅ Mergé | #93 |
 | 4. Bridge MQTT → Redis → WS | ✅ Mergé | #94 |
 | 5. POST /scores + EventBuffer | ✅ Mergé | #95 |
-| 5b. `/players` CRUD + format pseudo unifié | 🚧 En cours | feat/players-crud-and-pseudo-format |
+| 5b. `/players` CRUD + format pseudo unifié | ✅ Mergé | #97 |
+| 5c. `/leaderboard` global et par mode | 🚧 En cours | feat/leaderboard |
 | 6. Migration MySQL → PostgreSQL | 📌 À faire | #89 |
 | 7. Best score wins (solo) | 📌 À faire | #96 |
+| 8. Historique d'un joueur | 📌 À faire | #58 |
 
 ---
 
 ## Endpoints hors flow principal
+
+### `/leaderboard` — classement des meilleurs scores
+
+| Endpoint | Quoi | Code |
+|---|---|---|
+| `GET /leaderboard?mode=solo&limit=10` | Top N scores (best score par joueur) filtré par mode. `limit ∈ [1, 100]`, défaut 10. | `200` |
+| `GET /leaderboard` | Top N tous modes confondus (best `MAX(score)` global par joueur). | `200` |
+| `GET /leaderboard?mode=battle` | Mode inconnu | `422` |
+| `GET /leaderboard?limit=200` | Limit hors borne | `422` |
+
+Mécanique :
+- Seules les Games avec `status='finished'` comptent (les sessions en cours en Redis sont ignorées).
+- Une seule entrée par joueur (`GROUP BY player_id`, `MAX(score)`).
+- `rank` est calculé côté backend après la query (1-based, ordre DESC).
+- Pas de pagination — `limit` est suffisant pour un classement.
+
+> ⚠️ Les doublons HETIC (deux Players distincts ayant `ABC#HETIC`) apparaissent comme 2 entrées dans le leaderboard. La règle "best score wins" (#96) nettoiera ce cas via une dédup au niveau pseudo.
 
 ### `/players` — gestion du profil joueur
 
