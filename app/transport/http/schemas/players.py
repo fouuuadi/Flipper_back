@@ -24,6 +24,7 @@ class PlayerHistoryGameDTO(BaseModel):
     score: int
     started_at: datetime
     finished_at: datetime
+    is_best: bool = False
 
 
 class PlayerHistoryResponse(BaseModel):

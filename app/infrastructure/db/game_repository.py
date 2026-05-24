@@ -160,6 +160,19 @@ class MysqlGameRepository(GameRepository):
                 rows = await cursor.fetchall()
         return [row_to_game(row) for row in rows]
 
+    async def get_best_solo_score(self, player_id: int) -> int | None:
+        async with self.pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(
+                    "SELECT MAX(score) AS best FROM games "
+                    "WHERE player_id = %s AND mode = %s AND status = %s",
+                    (player_id, GameMode.SOLO.value, GameStatus.FINISHED.value),
+                )
+                row = await cursor.fetchone()
+        if row is None or row["best"] is None:
+            return None
+        return int(row["best"])
+
     async def persist_finished_session(
         self,
         pseudo: str,

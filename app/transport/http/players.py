@@ -84,18 +84,19 @@ async def get_player_history(
     game_repo: GameRepository = Depends(di.get_game_repo),
 ):
     usecase = GetPlayerHistoryUseCase(player_repo, game_repo)
-    player, games = await usecase.execute(player_id=player_id, mode=mode, limit=limit)
+    player, items = await usecase.execute(player_id=player_id, mode=mode, limit=limit)
     return PlayerHistoryResponse(
         player_id=player.id,
         pseudo=player.pseudo,
         games=[
             PlayerHistoryGameDTO(
-                game_id=g.id,
-                mode=g.mode.value,
-                score=g.score,
-                started_at=g.started_at,
-                finished_at=g.finished_at,
+                game_id=item.game.id,
+                mode=item.game.mode.value,
+                score=item.game.score,
+                started_at=item.game.started_at,
+                finished_at=item.game.finished_at,
+                is_best=item.is_best,
             )
-            for g in games
+            for item in items
         ],
     )

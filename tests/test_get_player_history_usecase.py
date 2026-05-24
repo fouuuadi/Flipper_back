@@ -21,8 +21,9 @@ class _InMemoryPlayerRepo:
 
 
 class _InMemoryGameRepo:
-    def __init__(self, games: list[Game]):
+    def __init__(self, games: list[Game], best_solo_score: int | None = None):
         self._games = games
+        self._best_solo_score = best_solo_score
         self.last_call: dict | None = None
 
     async def get_finished_games_by_player(self, player_id, mode, limit):
@@ -31,6 +32,9 @@ class _InMemoryGameRepo:
         if mode is not None:
             filtered = [g for g in filtered if g.mode == mode]
         return filtered[:limit]
+
+    async def get_best_solo_score(self, player_id):
+        return self._best_solo_score
 
     # unused interface bits (kept for ABC)
     async def create(self, *args, **kwargs): ...  # pragma: no cover
@@ -63,13 +67,18 @@ def _player(id_: int) -> Player:
 @pytest.mark.asyncio
 async def test_returns_player_and_games_for_known_id():
     player = _player(7)
-    games = [_game(7, GameMode.SOLO, 100, id_=1), _game(7, GameMode.ONE_V_ONE, 200, id_=2)]
-    usecase = GetPlayerHistoryUseCase(_InMemoryPlayerRepo(player), _InMemoryGameRepo(games))
+    games = [
+        _game(7, GameMode.SOLO, 100, id_=1),
+        _game(7, GameMode.ONE_V_ONE, 200, id_=2),
+    ]
+    usecase = GetPlayerHistoryUseCase(
+        _InMemoryPlayerRepo(player), _InMemoryGameRepo(games, best_solo_score=100)
+    )
 
-    returned_player, returned_games = await usecase.execute(player_id=7, mode=None, limit=10)
+    returned_player, items = await usecase.execute(player_id=7, mode=None, limit=10)
 
     assert returned_player.id == 7
-    assert [g.id for g in returned_games] == [1, 2]
+    assert [item.game.id for item in items] == [1, 2]
 
 
 @pytest.mark.asyncio
@@ -82,10 +91,12 @@ async def test_unknown_player_raises_not_found():
 
 @pytest.mark.asyncio
 async def test_player_with_no_games_returns_empty_list():
-    usecase = GetPlayerHistoryUseCase(_InMemoryPlayerRepo(_player(1)), _InMemoryGameRepo([]))
+    usecase = GetPlayerHistoryUseCase(
+        _InMemoryPlayerRepo(_player(1)), _InMemoryGameRepo([], best_solo_score=None)
+    )
 
-    _, games = await usecase.execute(player_id=1, mode=None, limit=10)
-    assert games == []
+    _, items = await usecase.execute(player_id=1, mode=None, limit=10)
+    assert items == []
 
 
 @pytest.mark.asyncio
@@ -96,3 +107,51 @@ async def test_propagates_filters_to_game_repo():
     await usecase.execute(player_id=3, mode=GameMode.SOLO, limit=5)
 
     assert game_repo.last_call == {"player_id": 3, "mode": GameMode.SOLO, "limit": 5}
+
+
+@pytest.mark.asyncio
+async def test_flags_best_solo_game():
+    player = _player(1)
+    games = [
+        _game(1, GameMode.SOLO, 1200, id_=1),
+        _game(1, GameMode.SOLO, 4500, id_=2),  # best
+        _game(1, GameMode.SOLO, 800, id_=3),
+    ]
+    usecase = GetPlayerHistoryUseCase(
+        _InMemoryPlayerRepo(player), _InMemoryGameRepo(games, best_solo_score=4500)
+    )
+
+    _, items = await usecase.execute(player_id=1, mode=None, limit=10)
+
+    by_id = {item.game.id: item.is_best for item in items}
+    assert by_id == {1: False, 2: True, 3: False}
+
+
+@pytest.mark.asyncio
+async def test_1v1_games_never_flagged_as_best():
+    player = _player(1)
+    games = [
+        _game(1, GameMode.ONE_V_ONE, 5000, id_=10),
+        _game(1, GameMode.ONE_V_ONE, 3000, id_=11),
+    ]
+    # Even with a matching best_solo_score, 1v1 games must stay false.
+    usecase = GetPlayerHistoryUseCase(
+        _InMemoryPlayerRepo(player), _InMemoryGameRepo(games, best_solo_score=5000)
+    )
+
+    _, items = await usecase.execute(player_id=1, mode=None, limit=10)
+
+    assert all(item.is_best is False for item in items)
+
+
+@pytest.mark.asyncio
+async def test_no_solo_record_means_no_flag():
+    player = _player(1)
+    games = [_game(1, GameMode.SOLO, 100, id_=1)]
+    usecase = GetPlayerHistoryUseCase(
+        _InMemoryPlayerRepo(player), _InMemoryGameRepo(games, best_solo_score=None)
+    )
+
+    _, items = await usecase.execute(player_id=1, mode=None, limit=10)
+
+    assert items[0].is_best is False
