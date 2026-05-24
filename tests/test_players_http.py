@@ -232,3 +232,31 @@ async def test_player_history_rejects_unknown_mode(db_pool, clean_players, http_
         f"/players/{player_id}/games", params={"mode": "battle-royale"}
     )
     assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_player_history_marks_best_solo_game(db_pool, clean_players, http_client):
+    created = await http_client.post("/players", json={"pseudo": "abc"})
+    player_id = created.json()["id"]
+    g_low = await _insert_finished_game(db_pool, player_id, "solo", 1200)
+    g_best = await _insert_finished_game(db_pool, player_id, "solo", 4500)
+    g_mid = await _insert_finished_game(db_pool, player_id, "solo", 800)
+
+    response = await http_client.get(f"/players/{player_id}/games", params={"mode": "solo"})
+
+    body = response.json()
+    flags = {g["game_id"]: g["is_best"] for g in body["games"]}
+    assert flags == {g_best: True, g_low: False, g_mid: False}
+
+
+@pytest.mark.asyncio
+async def test_player_history_never_marks_1v1_as_best(db_pool, clean_players, http_client):
+    created = await http_client.post("/players", json={"pseudo": "abc"})
+    player_id = created.json()["id"]
+    await _insert_finished_game(db_pool, player_id, "1v1", 5000)
+    await _insert_finished_game(db_pool, player_id, "1v1", 3000)
+
+    response = await http_client.get(f"/players/{player_id}/games", params={"mode": "1v1"})
+
+    body = response.json()
+    assert all(g["is_best"] is False for g in body["games"])

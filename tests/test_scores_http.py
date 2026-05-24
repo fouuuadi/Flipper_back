@@ -105,6 +105,9 @@ async def test_post_scores_flushes_session_end_to_end(
     assert body["eventCount"] == 1
     assert body["playerId"] > 0
     assert body["gameId"] > 0
+    # First solo flush ever for this pseudo: improved=true, previousBest=null.
+    assert body["improved"] is True
+    assert body["previousBest"] is None
 
     # Redis fully cleaned
     assert await redis_client.exists(SESSION_KEY_PREFIX + session_id) == 0
@@ -127,3 +130,43 @@ async def test_post_scores_unknown_session_returns_404(redis_client, db_pool, cl
     resp = await http_client.post("/scores", json={"sessionId": fake_id})
     assert resp.status_code == 404
     assert resp.json()["error"] == "SessionNotFoundError"
+
+
+async def _flush_session(http_client, pseudo: str, mode: str, score: int) -> dict:
+    """Helper that creates a session, forces its score in Redis, then flushes it."""
+    create_resp = await http_client.post("/sessions", json={"pseudo": pseudo, "mode": mode})
+    session_id = create_resp.json()["session_id"]
+    # Inject the score directly in the Redis Hash without going through MQTT.
+    from app import di as app_di
+    redis = app_di._redis_client
+    await redis.hset(f"session:{session_id}", "score", str(score))
+    return (await http_client.post("/scores", json={"sessionId": session_id})).json()
+
+
+@pytest.mark.asyncio
+async def test_post_scores_solo_improved_flag_progression(
+    redis_client, db_pool, clean_tables, http_client
+):
+    # 1st solo run — first ever, improved=true, previousBest=null.
+    r1 = await _flush_session(http_client, "abc", "solo", 1200)
+    assert r1["improved"] is True
+    assert r1["previousBest"] is None
+
+    # 2nd run, higher score → improved=true, previousBest=1200.
+    r2 = await _flush_session(http_client, "abc", "solo", 4500)
+    assert r2["improved"] is True
+    assert r2["previousBest"] == 1200
+
+    # 3rd run, lower score → improved=false, previousBest=4500.
+    r3 = await _flush_session(http_client, "abc", "solo", 800)
+    assert r3["improved"] is False
+    assert r3["previousBest"] == 4500
+
+
+@pytest.mark.asyncio
+async def test_post_scores_one_v_one_returns_null_improved(
+    redis_client, db_pool, clean_tables, http_client
+):
+    body = await _flush_session(http_client, "abc", "1v1", 3000)
+    assert body["improved"] is None
+    assert body["previousBest"] is None

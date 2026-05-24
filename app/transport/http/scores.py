@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, status
 from app import di
 from app.domain.ports.event_buffer import EventBuffer
 from app.domain.ports.game_repository import GameRepository
+from app.domain.ports.player_repository import PlayerRepository
 from app.domain.ports.session_store import SessionStore
 from app.transport.http.schemas.scores import (
     FinishSessionRequest,
@@ -24,11 +25,13 @@ async def finish_session(
     session_store: SessionStore = Depends(di.get_session_store),
     event_buffer: EventBuffer = Depends(di.get_event_buffer),
     game_repository: GameRepository = Depends(di.get_game_repo),
+    player_repository: PlayerRepository = Depends(di.get_player_repo),
 ):
     usecase = FinishAndPersistUseCase(
         session_store=session_store,
         event_buffer=event_buffer,
         game_repository=game_repository,
+        player_repository=player_repository,
     )
     result = await usecase.execute(request.session_id)
     return FinishSessionResponse(
@@ -36,4 +39,6 @@ async def finish_session(
         player_id=result.player_id,
         game_id=result.game_id,
         event_count=result.event_count,
+        improved=result.improved,
+        previous_best=result.previous_best,
     )

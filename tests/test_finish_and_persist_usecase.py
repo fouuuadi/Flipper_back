@@ -12,6 +12,7 @@ from app.domain.exceptions import SessionNotFoundError
 from app.domain.game import GameMode
 from app.domain.session import Session, SessionStatus
 from app.infrastructure.db.game_repository import MysqlGameRepository
+from app.infrastructure.db.player_repository import MysqlPlayerRepository
 from app.infrastructure.redis.event_buffer import EVENT_BUFFER_KEY_PREFIX, RedisEventBuffer
 from app.infrastructure.redis.session_store import SESSION_KEY_PREFIX, RedisSessionStore
 from app.usecase.finish_and_persist_usecase import FinishAndPersistUseCase
@@ -66,6 +67,11 @@ async def game_repo(db_pool):
 
 
 @pytest_asyncio.fixture
+async def player_repo(db_pool):
+    return MysqlPlayerRepository(db_pool)
+
+
+@pytest_asyncio.fixture
 async def clean_tables(db_pool):
     async with db_pool.acquire() as conn:
         async with conn.cursor() as cursor:
@@ -95,7 +101,7 @@ def _build_session(session_id: str, score: int = 0, mode: GameMode = GameMode.SO
 
 @pytest.mark.asyncio
 async def test_flush_persists_player_game_and_events(
-    session_store, event_buffer, game_repo, clean_tables, redis_client, db_pool
+    session_store, event_buffer, game_repo, player_repo, clean_tables, redis_client, db_pool
 ):
     session_id = uuid.uuid4().hex
     session = _build_session(session_id, score=4200)
@@ -117,7 +123,7 @@ async def test_flush_persists_player_game_and_events(
         },
     )
 
-    usecase = FinishAndPersistUseCase(session_store, event_buffer, game_repo)
+    usecase = FinishAndPersistUseCase(session_store, event_buffer, game_repo, player_repo)
     result = await usecase.execute(session_id)
 
     assert result.final_score == 4200
@@ -150,7 +156,7 @@ async def test_flush_persists_player_game_and_events(
 
 @pytest.mark.asyncio
 async def test_flush_reuses_existing_player(
-    session_store, event_buffer, game_repo, clean_tables, db_pool
+    session_store, event_buffer, game_repo, player_repo, clean_tables, db_pool
 ):
     # Seed the same pseudo on two consecutive sessions.
     pseudo = "REU#0001"
@@ -159,14 +165,14 @@ async def test_flush_reuses_existing_player(
     s1.pseudo = pseudo
     await session_store.create(s1)
 
-    result_1 = await FinishAndPersistUseCase(session_store, event_buffer, game_repo).execute(session_id_1)
+    result_1 = await FinishAndPersistUseCase(session_store, event_buffer, game_repo, player_repo).execute(session_id_1)
 
     session_id_2 = uuid.uuid4().hex
     s2 = _build_session(session_id_2, score=250)
     s2.pseudo = pseudo
     await session_store.create(s2)
 
-    result_2 = await FinishAndPersistUseCase(session_store, event_buffer, game_repo).execute(session_id_2)
+    result_2 = await FinishAndPersistUseCase(session_store, event_buffer, game_repo, player_repo).execute(session_id_2)
 
     assert result_1.player_id == result_2.player_id
     assert result_1.game_id != result_2.game_id
@@ -179,12 +185,12 @@ async def test_flush_reuses_existing_player(
 
 @pytest.mark.asyncio
 async def test_flush_with_no_events_still_creates_game(
-    session_store, event_buffer, game_repo, clean_tables, db_pool
+    session_store, event_buffer, game_repo, player_repo, clean_tables, db_pool
 ):
     session_id = uuid.uuid4().hex
     await session_store.create(_build_session(session_id, score=42))
 
-    result = await FinishAndPersistUseCase(session_store, event_buffer, game_repo).execute(session_id)
+    result = await FinishAndPersistUseCase(session_store, event_buffer, game_repo, player_repo).execute(session_id)
 
     assert result.event_count == 0
     assert result.final_score == 42
@@ -199,14 +205,14 @@ async def test_flush_with_no_events_still_creates_game(
 
 
 @pytest.mark.asyncio
-async def test_flush_unknown_session_raises(session_store, event_buffer, game_repo, clean_tables):
+async def test_flush_unknown_session_raises(session_store, event_buffer, game_repo, player_repo, clean_tables):
     with pytest.raises(SessionNotFoundError):
-        await FinishAndPersistUseCase(session_store, event_buffer, game_repo).execute("ghost-id")
+        await FinishAndPersistUseCase(session_store, event_buffer, game_repo, player_repo).execute("ghost-id")
 
 
 @pytest.mark.asyncio
 async def test_unknown_event_topics_are_skipped(
-    session_store, event_buffer, game_repo, clean_tables, db_pool
+    session_store, event_buffer, game_repo, player_repo, clean_tables, db_pool
 ):
     session_id = uuid.uuid4().hex
     await session_store.create(_build_session(session_id))
@@ -219,7 +225,7 @@ async def test_unknown_event_topics_are_skipped(
         {"topic": "flipper/bumper/hit", "payload": {"points": 5}, "occured_at": "2026-05-23T10:00:02+00:00"},
     )
 
-    result = await FinishAndPersistUseCase(session_store, event_buffer, game_repo).execute(session_id)
+    result = await FinishAndPersistUseCase(session_store, event_buffer, game_repo, player_repo).execute(session_id)
 
     assert result.event_count == 1
     async with db_pool.acquire() as conn:
@@ -230,3 +236,132 @@ async def test_unknown_event_topics_are_skipped(
             )
             rows = await cursor.fetchall()
             assert [r["type"] for r in rows] == ["bumper_hit"]
+
+
+@pytest.mark.asyncio
+async def test_first_solo_flush_marks_improved_true_with_null_previous_best(
+    session_store, event_buffer, game_repo, player_repo, clean_tables
+):
+    session_id = uuid.uuid4().hex
+    await session_store.create(_build_session(session_id, score=1200, mode=GameMode.SOLO))
+
+    result = await FinishAndPersistUseCase(
+        session_store, event_buffer, game_repo, player_repo
+    ).execute(session_id)
+
+    assert result.improved is True
+    assert result.previous_best is None
+
+
+@pytest.mark.asyncio
+async def test_second_solo_flush_with_higher_score_marks_improved_true(
+    session_store, event_buffer, game_repo, player_repo, clean_tables
+):
+    pseudo = "BST#HETIC"
+    s1_id = uuid.uuid4().hex
+    s1 = _build_session(s1_id, score=1000, mode=GameMode.SOLO)
+    s1.pseudo = pseudo
+    await session_store.create(s1)
+    await FinishAndPersistUseCase(session_store, event_buffer, game_repo, player_repo).execute(s1_id)
+
+    s2_id = uuid.uuid4().hex
+    s2 = _build_session(s2_id, score=4500, mode=GameMode.SOLO)
+    s2.pseudo = pseudo
+    await session_store.create(s2)
+
+    result = await FinishAndPersistUseCase(
+        session_store, event_buffer, game_repo, player_repo
+    ).execute(s2_id)
+
+    assert result.improved is True
+    assert result.previous_best == 1000
+
+
+@pytest.mark.asyncio
+async def test_solo_flush_with_lower_score_marks_improved_false(
+    session_store, event_buffer, game_repo, player_repo, clean_tables
+):
+    pseudo = "WRS#HETIC"
+    s1_id = uuid.uuid4().hex
+    s1 = _build_session(s1_id, score=4500, mode=GameMode.SOLO)
+    s1.pseudo = pseudo
+    await session_store.create(s1)
+    await FinishAndPersistUseCase(session_store, event_buffer, game_repo, player_repo).execute(s1_id)
+
+    s2_id = uuid.uuid4().hex
+    s2 = _build_session(s2_id, score=800, mode=GameMode.SOLO)
+    s2.pseudo = pseudo
+    await session_store.create(s2)
+
+    result = await FinishAndPersistUseCase(
+        session_store, event_buffer, game_repo, player_repo
+    ).execute(s2_id)
+
+    assert result.improved is False
+    assert result.previous_best == 4500
+
+
+@pytest.mark.asyncio
+async def test_solo_flush_with_equal_score_marks_improved_false(
+    session_store, event_buffer, game_repo, player_repo, clean_tables
+):
+    pseudo = "EQS#HETIC"
+    s1_id = uuid.uuid4().hex
+    s1 = _build_session(s1_id, score=2500, mode=GameMode.SOLO)
+    s1.pseudo = pseudo
+    await session_store.create(s1)
+    await FinishAndPersistUseCase(session_store, event_buffer, game_repo, player_repo).execute(s1_id)
+
+    s2_id = uuid.uuid4().hex
+    s2 = _build_session(s2_id, score=2500, mode=GameMode.SOLO)
+    s2.pseudo = pseudo
+    await session_store.create(s2)
+
+    result = await FinishAndPersistUseCase(
+        session_store, event_buffer, game_repo, player_repo
+    ).execute(s2_id)
+
+    # Equal score does not beat the record → not "improved".
+    assert result.improved is False
+    assert result.previous_best == 2500
+
+
+@pytest.mark.asyncio
+async def test_one_v_one_flush_returns_improved_none(
+    session_store, event_buffer, game_repo, player_repo, clean_tables
+):
+    session_id = uuid.uuid4().hex
+    await session_store.create(_build_session(session_id, score=3000, mode=GameMode.ONE_V_ONE))
+
+    result = await FinishAndPersistUseCase(
+        session_store, event_buffer, game_repo, player_repo
+    ).execute(session_id)
+
+    assert result.improved is None
+    assert result.previous_best is None
+
+
+@pytest.mark.asyncio
+async def test_one_v_one_flush_after_solo_does_not_use_solo_best_as_previous(
+    session_store, event_buffer, game_repo, player_repo, clean_tables
+):
+    pseudo = "MIX#HETIC"
+    # Seed a strong solo score first.
+    s1_id = uuid.uuid4().hex
+    s1 = _build_session(s1_id, score=8000, mode=GameMode.SOLO)
+    s1.pseudo = pseudo
+    await session_store.create(s1)
+    await FinishAndPersistUseCase(session_store, event_buffer, game_repo, player_repo).execute(s1_id)
+
+    # Now a 1v1 game with a lower score — should be flagged improved=None, not False.
+    s2_id = uuid.uuid4().hex
+    s2 = _build_session(s2_id, score=200, mode=GameMode.ONE_V_ONE)
+    s2.pseudo = pseudo
+    await session_store.create(s2)
+
+    result = await FinishAndPersistUseCase(
+        session_store, event_buffer, game_repo, player_repo
+    ).execute(s2_id)
+
+    assert result.improved is None
+    assert result.previous_best is None

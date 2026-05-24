@@ -81,3 +81,12 @@ class GameRepository(ABC):
         by `finished_at DESC`.
         """
         ...
+
+    @abstractmethod
+    async def get_best_solo_score(self, player_id: int) -> int | None:
+        """Return the best solo score this player has persisted, or None.
+
+        Considers only games with `status='finished'` and `mode='solo'`.
+        Used by the "best score wins" rule applied in `POST /scores`.
+        """
+        ...

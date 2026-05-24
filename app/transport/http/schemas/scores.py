@@ -15,5 +15,9 @@ class FinishSessionResponse(BaseModel):
     player_id: int = Field(serialization_alias="playerId")
     game_id: int = Field(serialization_alias="gameId")
     event_count: int = Field(serialization_alias="eventCount")
+    # "improved" / "previousBest" only carry meaning in solo mode; both are
+    # null in 1v1 where each match is treated as unique (no personal record).
+    improved: bool | None = None
+    previous_best: int | None = Field(default=None, serialization_alias="previousBest")
 
     model_config = {"populate_by_name": True}
