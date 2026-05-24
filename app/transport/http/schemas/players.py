@@ -16,3 +16,17 @@ class PlayerResponse(BaseModel):
     id: int
     pseudo: str
     created_at: datetime
+
+
+class PlayerHistoryGameDTO(BaseModel):
+    game_id: int
+    mode: str
+    score: int
+    started_at: datetime
+    finished_at: datetime
+
+
+class PlayerHistoryResponse(BaseModel):
+    player_id: int
+    pseudo: str
+    games: list[PlayerHistoryGameDTO]

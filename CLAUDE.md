@@ -98,7 +98,8 @@ app/
 │   ├── finish_and_persist_usecase.py  # 🆕 Flush session Redis → DB atomique (POST /scores)
 │   ├── create_or_get_player_usecase.py # 🆕 Upsert idempotent Player par pseudo
 │   ├── get_player_usecase.py          # 🆕 Lookup Player par id ou pseudo
-│   └── get_leaderboard_usecase.py     # 🆕 Top N scores filtrables par mode
+│   ├── get_leaderboard_usecase.py     # 🆕 Top N scores filtrables par mode
+│   └── get_player_history_usecase.py  # 🆕 Historique de games terminées d'un joueur
 └── transport/
     ├── http/
     │   ├── root.py, health.py         # ✅
