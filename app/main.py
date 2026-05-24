@@ -4,7 +4,7 @@ from fastapi import FastAPI
 
 from app.config import get_settings
 from app.domain.ports.mqtt_gateway import MqttEvent
-from app.infrastructure.db.mysql import connect, disconnect
+from app.infrastructure.db.postgres import connect, disconnect
 from app.infrastructure.mqtt.aio_mqtt_gateway import AioMqttGateway
 from app.infrastructure.redis import client as redis_client
 from app.logging_config import configure_logging

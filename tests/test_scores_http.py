@@ -1,10 +1,9 @@
+import json
 import os
 import uuid
 
-import aiomysql
 import pytest
 import pytest_asyncio
-from dotenv import load_dotenv
 from httpx import ASGITransport, AsyncClient
 from redis.asyncio import from_url
 
@@ -12,8 +11,8 @@ from app import di
 from app.infrastructure.redis.event_buffer import EVENT_BUFFER_KEY_PREFIX
 from app.infrastructure.redis.session_store import SESSION_KEY_PREFIX
 from app.main import app
+from tests.conftest import make_db_pool, truncate_all
 
-load_dotenv()
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 
 
@@ -32,36 +31,15 @@ async def redis_client():
 
 @pytest_asyncio.fixture
 async def db_pool():
-    host = os.getenv("DB_HOST", "localhost")
-    if host == "db":
-        host = "localhost"
-    pool = await aiomysql.create_pool(
-        host=host,
-        port=int(os.getenv("DB_PORT", 3306)),
-        user=os.getenv("DB_USER", "flipper"),
-        password=os.getenv("DB_PASSWORD"),
-        db=os.getenv("DB_NAME", "flipper"),
-        minsize=1,
-        maxsize=5,
-        connect_timeout=10,
-    )
+    pool = await make_db_pool()
     di.set_db_pool(pool)
     yield pool
-    pool.close()
-    await pool.wait_closed()
+    await pool.close()
 
 
 @pytest_asyncio.fixture
 async def clean_tables(db_pool):
-    async with db_pool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute("SET FOREIGN_KEY_CHECKS=0")
-            await cursor.execute("DELETE FROM game_events")
-            await cursor.execute("DELETE FROM games")
-            await cursor.execute("DELETE FROM rooms")
-            await cursor.execute("DELETE FROM players")
-            await cursor.execute("SET FOREIGN_KEY_CHECKS=1")
-            await conn.commit()
+    await truncate_all(db_pool)
     yield
 
 
@@ -77,16 +55,13 @@ async def http_client():
 async def test_post_scores_flushes_session_end_to_end(
     redis_client, db_pool, clean_tables, http_client
 ):
-    # Create session via HTTP
     create_resp = await http_client.post(
         "/sessions", json={"pseudo": "abc", "mode": "solo"}
     )
     assert create_resp.status_code == 201
     session_id = create_resp.json()["session_id"]
 
-    # Seed an event in Redis (as if HandleMqttEventUseCase had pushed)
     key = EVENT_BUFFER_KEY_PREFIX + session_id
-    import json
     await redis_client.rpush(
         key,
         json.dumps({
@@ -96,7 +71,6 @@ async def test_post_scores_flushes_session_end_to_end(
         }),
     )
 
-    # Flush
     resp = await http_client.post("/scores", json={"sessionId": session_id})
 
     assert resp.status_code == 200
@@ -105,23 +79,24 @@ async def test_post_scores_flushes_session_end_to_end(
     assert body["eventCount"] == 1
     assert body["playerId"] > 0
     assert body["gameId"] > 0
-    # First solo flush ever for this pseudo: improved=true, previousBest=null.
     assert body["improved"] is True
     assert body["previousBest"] is None
 
-    # Redis fully cleaned
     assert await redis_client.exists(SESSION_KEY_PREFIX + session_id) == 0
     assert await redis_client.exists(EVENT_BUFFER_KEY_PREFIX + session_id) == 0
 
-    # Player + Game persisted
     async with db_pool.acquire() as conn:
-        async with conn.cursor(aiomysql.DictCursor) as cursor:
-            await cursor.execute("SELECT pseudo FROM players WHERE id = %s", (body["playerId"],))
-            assert (await cursor.fetchone())["pseudo"].startswith("ABC#")
+        row = await conn.fetchrow(
+            "SELECT pseudo FROM players WHERE id = $1",
+            body["playerId"],
+        )
+        assert row["pseudo"].startswith("ABC#")
 
-            await cursor.execute("SELECT mode, score FROM games WHERE id = %s", (body["gameId"],))
-            game = await cursor.fetchone()
-            assert game["mode"] == "solo"
+        row = await conn.fetchrow(
+            "SELECT mode, score FROM games WHERE id = $1",
+            body["gameId"],
+        )
+        assert row["mode"] == "solo"
 
 
 @pytest.mark.asyncio
@@ -136,8 +111,8 @@ async def _flush_session(http_client, pseudo: str, mode: str, score: int) -> dic
     """Helper that creates a session, forces its score in Redis, then flushes it."""
     create_resp = await http_client.post("/sessions", json={"pseudo": pseudo, "mode": mode})
     session_id = create_resp.json()["session_id"]
-    # Inject the score directly in the Redis Hash without going through MQTT.
     from app import di as app_di
+
     redis = app_di._redis_client
     await redis.hset(f"session:{session_id}", "score", str(score))
     return (await http_client.post("/scores", json={"sessionId": session_id})).json()
@@ -147,17 +122,14 @@ async def _flush_session(http_client, pseudo: str, mode: str, score: int) -> dic
 async def test_post_scores_solo_improved_flag_progression(
     redis_client, db_pool, clean_tables, http_client
 ):
-    # 1st solo run — first ever, improved=true, previousBest=null.
     r1 = await _flush_session(http_client, "abc", "solo", 1200)
     assert r1["improved"] is True
     assert r1["previousBest"] is None
 
-    # 2nd run, higher score → improved=true, previousBest=1200.
     r2 = await _flush_session(http_client, "abc", "solo", 4500)
     assert r2["improved"] is True
     assert r2["previousBest"] == 1200
 
-    # 3rd run, lower score → improved=false, previousBest=4500.
     r3 = await _flush_session(http_client, "abc", "solo", 800)
     assert r3["improved"] is False
     assert r3["previousBest"] == 4500

@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any
 
-import aiomysql
+import asyncpg
 
 from app.domain.game import Game, GameMode, GameStatus
 from app.domain.game_event import GameEventType
@@ -17,105 +17,93 @@ _TOPIC_TO_EVENT_TYPE: dict[str, GameEventType] = {
     "flipper/game/over": GameEventType.GAME_OVER,
 }
 
+_GAME_SELECT_COLS = (
+    "id, match_id, player_id, room_id, mode, score, status, started_at, finished_at"
+)
 
-class MysqlGameRepository(GameRepository):
-    """
-    Repository pour gérer les opérations CRUD sur les games.
-    """
 
-    def __init__(self, pool: aiomysql.Pool):
+class PgGameRepository(GameRepository):
+    """asyncpg-backed repository for games."""
+
+    def __init__(self, pool: asyncpg.Pool):
         self.pool = pool
 
-    async def create(self, player_id: int, room_id: int | None, mode: GameMode) -> Game:
+    async def create(
+        self, player_id: int, room_id: int | None, mode: GameMode
+    ) -> Game:
         async with self.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute(
-                    "INSERT INTO games (player_id, room_id, mode, score, status) VALUES (%s, %s, %s, %s, %s)",
-                    (player_id, room_id, mode.value, 0, GameStatus.PLAYING.value),
-                )
-                game_id = cursor.lastrowid
-                await conn.commit()
-
-            async with conn.cursor(aiomysql.DictCursor) as cursor:
-                await cursor.execute(
-                    "SELECT id, match_id, player_id, room_id, mode, score, status, started_at, finished_at FROM games WHERE id = %s",
-                    (game_id,),
-                )
-                return row_to_game(await cursor.fetchone())
+            row = await conn.fetchrow(
+                f"INSERT INTO games (player_id, room_id, mode, score, status) "
+                f"VALUES ($1, $2, $3, $4, $5) RETURNING {_GAME_SELECT_COLS}",
+                player_id,
+                room_id,
+                mode.value,
+                0,
+                GameStatus.PLAYING.value,
+            )
+        return row_to_game(dict(row))
 
     async def get_by_id(self, id: int) -> Game | None:
         async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cursor:
-                await cursor.execute(
-                    "SELECT id, match_id, player_id, room_id, mode, score, status, started_at, finished_at FROM games WHERE id = %s",
-                    (id,),
-                )
-                return row_to_game(await cursor.fetchone())
+            row = await conn.fetchrow(
+                f"SELECT {_GAME_SELECT_COLS} FROM games WHERE id = $1",
+                id,
+            )
+        return row_to_game(dict(row) if row is not None else None)
 
     async def add_points(self, game_id: int, points: int) -> Game:
         async with self.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute(
-                    "UPDATE games SET score = score + %s WHERE id = %s",
-                    (points, game_id),
-                )
-                await conn.commit()
-
-            async with conn.cursor(aiomysql.DictCursor) as cursor:
-                await cursor.execute(
-                    "SELECT id, match_id, player_id, room_id, mode, score, status, started_at, finished_at FROM games WHERE id = %s",
-                    (game_id,),
-                )
-                return row_to_game(await cursor.fetchone())
+            row = await conn.fetchrow(
+                f"UPDATE games SET score = score + $1 WHERE id = $2 "
+                f"RETURNING {_GAME_SELECT_COLS}",
+                points,
+                game_id,
+            )
+        return row_to_game(dict(row))
 
     async def get_active_by_room(self, room_id: int) -> list[Game]:
         async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cursor:
-                await cursor.execute(
-                    "SELECT id, match_id, player_id, room_id, mode, score, status, started_at, finished_at FROM games WHERE room_id = %s AND status = %s",
-                    (room_id, GameStatus.PLAYING.value),
-                )
-                rows = await cursor.fetchall()
-                return [row_to_game(row) for row in rows]
+            rows = await conn.fetch(
+                f"SELECT {_GAME_SELECT_COLS} FROM games "
+                f"WHERE room_id = $1 AND status = $2",
+                room_id,
+                GameStatus.PLAYING.value,
+            )
+        return [row_to_game(dict(r)) for r in rows]
 
     async def finish(self, game_id: int) -> Game:
         async with self.pool.acquire() as conn:
-            async with conn.cursor() as cursor:
-                await cursor.execute(
-                    "UPDATE games SET status = %s, finished_at = NOW() WHERE id = %s",
-                    (GameStatus.FINISHED.value, game_id),
-                )
-                await conn.commit()
-
-            async with conn.cursor(aiomysql.DictCursor) as cursor:
-                await cursor.execute(
-                    "SELECT id, match_id, player_id, room_id, mode, score, status, started_at, finished_at FROM games WHERE id = %s",
-                    (game_id,),
-                )
-                return row_to_game(await cursor.fetchone())
+            row = await conn.fetchrow(
+                f"UPDATE games SET status = $1, finished_at = NOW() WHERE id = $2 "
+                f"RETURNING {_GAME_SELECT_COLS}",
+                GameStatus.FINISHED.value,
+                game_id,
+            )
+        return row_to_game(dict(row))
 
     async def leaderboard(
         self,
         mode: GameMode | None,
         limit: int,
     ) -> list[LeaderboardEntry]:
+        params: list = [GameStatus.FINISHED.value]
         sql = (
             "SELECT p.id AS player_id, p.pseudo AS pseudo, MAX(g.score) AS score "
             "FROM games g "
             "JOIN players p ON g.player_id = p.id "
-            "WHERE g.status = %s"
+            "WHERE g.status = $1"
         )
-        params: list = [GameStatus.FINISHED.value]
         if mode is not None:
-            sql += " AND g.mode = %s"
             params.append(mode.value)
-        sql += " GROUP BY p.id, p.pseudo ORDER BY score DESC, p.id ASC LIMIT %s"
+            sql += f" AND g.mode = ${len(params)}"
         params.append(int(limit))
+        sql += (
+            f" GROUP BY p.id, p.pseudo ORDER BY score DESC, p.id ASC "
+            f"LIMIT ${len(params)}"
+        )
 
         async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cursor:
-                await cursor.execute(sql, tuple(params))
-                rows = await cursor.fetchall()
+            rows = await conn.fetch(sql, *params)
         return [
             LeaderboardEntry(
                 rank=index,
@@ -128,13 +116,12 @@ class MysqlGameRepository(GameRepository):
 
     async def get_by_status(self, status: GameStatus) -> list[Game]:
         async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cursor:
-                await cursor.execute(
-                    "SELECT id, match_id, player_id, room_id, mode, score, status, started_at, finished_at FROM games WHERE status = %s ORDER BY started_at DESC",
-                    (status.value,),
-                )
-                rows = await cursor.fetchall()
-                return [row_to_game(row) for row in rows]
+            rows = await conn.fetch(
+                f"SELECT {_GAME_SELECT_COLS} FROM games "
+                f"WHERE status = $1 ORDER BY started_at DESC",
+                status.value,
+            )
+        return [row_to_game(dict(r)) for r in rows]
 
     async def get_finished_games_by_player(
         self,
@@ -142,33 +129,30 @@ class MysqlGameRepository(GameRepository):
         mode: GameMode | None,
         limit: int,
     ) -> list[Game]:
-        sql = (
-            "SELECT id, match_id, player_id, room_id, mode, score, status, started_at, finished_at "
-            "FROM games "
-            "WHERE player_id = %s AND status = %s"
-        )
         params: list = [player_id, GameStatus.FINISHED.value]
+        sql = (
+            f"SELECT {_GAME_SELECT_COLS} FROM games "
+            f"WHERE player_id = $1 AND status = $2"
+        )
         if mode is not None:
-            sql += " AND mode = %s"
             params.append(mode.value)
-        sql += " ORDER BY finished_at DESC, id DESC LIMIT %s"
+            sql += f" AND mode = ${len(params)}"
         params.append(int(limit))
+        sql += f" ORDER BY finished_at DESC, id DESC LIMIT ${len(params)}"
 
         async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cursor:
-                await cursor.execute(sql, tuple(params))
-                rows = await cursor.fetchall()
-        return [row_to_game(row) for row in rows]
+            rows = await conn.fetch(sql, *params)
+        return [row_to_game(dict(r)) for r in rows]
 
     async def get_best_solo_score(self, player_id: int) -> int | None:
         async with self.pool.acquire() as conn:
-            async with conn.cursor(aiomysql.DictCursor) as cursor:
-                await cursor.execute(
-                    "SELECT MAX(score) AS best FROM games "
-                    "WHERE player_id = %s AND mode = %s AND status = %s",
-                    (player_id, GameMode.SOLO.value, GameStatus.FINISHED.value),
-                )
-                row = await cursor.fetchone()
+            row = await conn.fetchrow(
+                "SELECT MAX(score) AS best FROM games "
+                "WHERE player_id = $1 AND mode = $2 AND status = $3",
+                player_id,
+                GameMode.SOLO.value,
+                GameStatus.FINISHED.value,
+            )
         if row is None or row["best"] is None:
             return None
         return int(row["best"])
@@ -184,19 +168,13 @@ class MysqlGameRepository(GameRepository):
     ) -> tuple[int, int, int]:
         event_rows = self._build_event_rows(events)
         async with self.pool.acquire() as conn:
-            try:
-                await conn.begin()
-                async with conn.cursor(aiomysql.DictCursor) as cursor:
-                    player_id = await self._upsert_player(cursor, pseudo)
-                    game_id = await self._insert_finished_game(
-                        cursor, player_id, mode, score, started_at, finished_at
-                    )
-                    inserted_events = await self._insert_event_rows(cursor, game_id, event_rows)
-                await conn.commit()
-                return player_id, game_id, inserted_events
-            except Exception:
-                await conn.rollback()
-                raise
+            async with conn.transaction():
+                player_id = await self._upsert_player(conn, pseudo)
+                game_id = await self._insert_finished_game(
+                    conn, player_id, mode, score, started_at, finished_at
+                )
+                inserted_events = await self._insert_event_rows(conn, game_id, event_rows)
+        return player_id, game_id, inserted_events
 
     @staticmethod
     def _build_event_rows(events: list[dict[str, Any]]) -> list[tuple]:
@@ -219,49 +197,63 @@ class MysqlGameRepository(GameRepository):
                     occured_at = datetime.utcnow()
             elif not isinstance(occured_at, datetime):
                 occured_at = datetime.utcnow()
+            # asyncpg expects naive datetimes for TIMESTAMP columns; drop the TZ.
+            if occured_at.tzinfo is not None:
+                occured_at = occured_at.replace(tzinfo=None)
             rows.append((event_type.value, points, occured_at))
         return rows
 
     @staticmethod
-    async def _upsert_player(cursor, pseudo: str) -> int:
-        await cursor.execute("SELECT id FROM players WHERE pseudo = %s", (pseudo,))
-        row = await cursor.fetchone()
-        if row:
+    async def _upsert_player(conn: asyncpg.Connection, pseudo: str) -> int:
+        row = await conn.fetchrow(
+            "SELECT id FROM players WHERE pseudo = $1",
+            pseudo,
+        )
+        if row is not None:
             return row["id"]
-        await cursor.execute("INSERT INTO players (pseudo) VALUES (%s)", (pseudo,))
-        return cursor.lastrowid
+        row = await conn.fetchrow(
+            "INSERT INTO players (pseudo) VALUES ($1) RETURNING id",
+            pseudo,
+        )
+        return row["id"]
 
     @staticmethod
     async def _insert_finished_game(
-        cursor,
+        conn: asyncpg.Connection,
         player_id: int,
         mode: GameMode,
         score: int,
         started_at: datetime,
         finished_at: datetime,
     ) -> int:
-        await cursor.execute(
+        # asyncpg TIMESTAMP (without TZ) doesn't accept tz-aware datetimes.
+        if started_at.tzinfo is not None:
+            started_at = started_at.replace(tzinfo=None)
+        if finished_at.tzinfo is not None:
+            finished_at = finished_at.replace(tzinfo=None)
+        row = await conn.fetchrow(
             "INSERT INTO games (player_id, room_id, mode, score, status, started_at, finished_at) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s)",
-            (
-                player_id,
-                None,
-                mode.value,
-                score,
-                GameStatus.FINISHED.value,
-                started_at,
-                finished_at,
-            ),
+            "VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+            player_id,
+            None,
+            mode.value,
+            score,
+            GameStatus.FINISHED.value,
+            started_at,
+            finished_at,
         )
-        return cursor.lastrowid
+        return row["id"]
 
     @staticmethod
-    async def _insert_event_rows(cursor, game_id: int, event_rows: list[tuple]) -> int:
+    async def _insert_event_rows(
+        conn: asyncpg.Connection, game_id: int, event_rows: list[tuple]
+    ) -> int:
         if not event_rows:
             return 0
         rows_with_game = [(game_id,) + row for row in event_rows]
-        await cursor.executemany(
-            "INSERT INTO game_events (game_id, type, points, occured_at) VALUES (%s, %s, %s, %s)",
+        await conn.executemany(
+            "INSERT INTO game_events (game_id, type, points, occured_at) "
+            "VALUES ($1, $2, $3, $4)",
             rows_with_game,
         )
         return len(rows_with_game)

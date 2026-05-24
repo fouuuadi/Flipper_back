@@ -33,7 +33,7 @@ On migre vers une **nouvelle archi** (Redis sessions, MQTT IoT, écriture DB en 
 
 | Avant | Après | Raison |
 |---|---|---|
-| MySQL 8.4 (aiomysql, SQL brut) | **PostgreSQL** (asyncpg, SQL brut) | Plus adapté, meilleur écosystème async |
+| MySQL 8.4 (aiomysql, SQL brut) | **PostgreSQL 16** (asyncpg, SQL brut) ✅ | Plus adapté, meilleur écosystème async |
 | Écriture DB à chaque event | **Redis** pendant la partie, DB en fin seulement | Perf temps réel |
 | Pas d'IoT | **MQTT** (aiomqtt) broker pour events physiques | Bumpers, capteurs flipper |
 | Rooms comme entité principale | **Sessions** éphémères (Redis) + rooms persistées | Séparation éphémère/permanent |
@@ -74,12 +74,12 @@ app/
 │       └── event_buffer.py            # 🆕 Port ABC pour buffer d'events MQTT en Redis
 ├── infrastructure/
 │   ├── db/
-│   │   ├── postgres.py                # 🔄 Remplace mysql.py (pool asyncpg)
-│   │   ├── player_repository.py       # 🔄 Renommer PgPlayerRepository (adapter SQL)
-│   │   ├── game_repository.py         # 🔄 PgGameRepository
-│   │   ├── game_event_repository.py   # 🔄 PgGameEventRepository
-│   │   ├── room_repository.py         # 🔄 PgRoomRepository
-│   │   └── mappers/                   # ✅ Garder (adapter si colonnes changent)
+│   │   ├── postgres.py                # ✅ Pool asyncpg
+│   │   ├── player_repository.py       # ✅ PgPlayerRepository (asyncpg)
+│   │   ├── game_repository.py         # ✅ PgGameRepository (asyncpg)
+│   │   ├── game_event_repository.py   # ✅ PgGameEventRepository (asyncpg)
+│   │   ├── room_repository.py         # ✅ PgRoomRepository (asyncpg)
+│   │   └── mappers/                   # ✅ row → entity (compat asyncpg Records)
 │   ├── redis/
 │   │   ├── client.py                  # 🆕 Connexion Redis async
 │   │   └── session_store.py           # 🆕 RedisSessionStore(SessionStore)
@@ -284,34 +284,34 @@ APP_PORT=8000
 - [x] Session étendue avec `lives` + `combo`
 - [x] Tests unit (use case, hub)
 
-### Étape 5 — Flush final (POST /scores) 🚧 (PR #88 — branche `feat/post-scores-flush`)
-- [ ] `domain/ports/event_buffer.py` + `infrastructure/redis/event_buffer.py` (Redis List, accumule events MQTT pendant la partie)
-- [ ] `mode` ajouté à Session
-- [ ] `GameRepository.persist_finished_session(...)` — transaction atomique (Player upsert + Game + GameEvents batch)
-- [ ] `usecase/finish_and_persist_usecase.py`
-- [ ] `transport/http/scores.py` — POST /scores
-- [ ] Tests
+### Étape 5 — Flush final (POST /scores) ✅ (PR #95)
+- [x] `domain/ports/event_buffer.py` + `infrastructure/redis/event_buffer.py` (Redis List)
+- [x] `mode` ajouté à Session
+- [x] `GameRepository.persist_finished_session(...)` — transaction atomique
+- [x] `usecase/finish_and_persist_usecase.py`
+- [x] `transport/http/scores.py` — POST /scores
+- [x] Tests
 
-### Étape 6 — Migration MySQL → PostgreSQL
-- [ ] Adapter `docker-compose.yml` (PostgreSQL au lieu de MySQL)
-- [ ] `infrastructure/db/postgres.py` remplace `mysql.py`
-- [ ] Adapter tous les `MysqlXxxRepository` → `PgXxxRepository`
-- [ ] Adapter les scripts `db/init/`
-- [ ] Adapter les 70+ tests existants
-- [ ] Mettre à jour CI
+### Étape 6 — Migration MySQL → PostgreSQL 🚧 (branche `feat/postgres-migration`)
+- [x] Adapter `docker-compose.yml` (postgres:16-alpine + adminer)
+- [x] `infrastructure/db/postgres.py` remplace `mysql.py`
+- [x] `MysqlXxxRepository` → `PgXxxRepository` (asyncpg, placeholders `$1`, `RETURNING`, transactions natives)
+- [x] Adapter les scripts `db/init/` (SERIAL, TIMESTAMP, ALTER COLUMN DROP NOT NULL)
+- [x] Adapter tous les tests d'intégration (conftest.py partagé)
+- [x] Mettre à jour CI (service `postgres:16-alpine`, `psql` init)
 
 ### Étape 7 — Issues existantes (après migration)
-- [ ] #68 Unit of Work (transactions atomiques)
+- [x] #71 Structured logging JSON (PR #101)
+- [ ] #68 Unit of Work (transactions atomiques — partiellement résolu inline)
 - [ ] #69 EventBus interne
 - [ ] #70 WebSocket broadcast par room
-- [ ] #71 Structured logging JSON
 
 ---
 
 ## Ce qui est déjà fait (état actuel)
 
 - [x] Setup FastAPI + Clean Archi 4 couches
-- [x] MySQL avec aiomysql (SQL brut, pas d'ORM)
+- [x] PostgreSQL 16 avec asyncpg (SQL brut, pas d'ORM) — migration MySQL→PG mergée
 - [x] Entités Pydantic (Player, Room, Game, GameEvent, Match)
 - [x] Ports/Interfaces dans `domain/ports/`
 - [x] Mappers (row → entity)
@@ -321,13 +321,15 @@ APP_PORT=8000
 - [x] WebSocket broadcast par room (room_hub.py)
 - [x] 70+ tests (pytest)
 - [x] CI/CD GitHub Actions → GHCR
-- [x] Docker Compose (MySQL + phpMyAdmin + backend)
+- [x] Docker Compose (PostgreSQL 16 + Adminer + Redis + Mosquitto + backend)
 - [x] ruff + import-linter (4 contracts)
 - [x] Redis sessions (port + Redis Hash impl + sliding TTL)
 - [x] Sessions HTTP endpoints (POST /sessions, POST /sessions/{id}/ready)
 - [x] MQTT broker bridge (Mosquitto + aiomqtt + port + impl)
 - [x] Bridge MQTT → Redis → WebSocket (session-scoped broadcast)
 - [x] SessionEventBroadcaster port + SessionHubManager
-- [ ] POST /scores (flush final) — en cours sur `feat/post-scores-flush`
-- [ ] EventBuffer port + Redis List impl — en cours sur `feat/post-scores-flush`
-- [ ] Migration PostgreSQL
+- [x] POST /scores (flush final + EventBuffer + atomic transaction)
+- [x] `/players`, `/leaderboard`, `/players/{id}/games` (CRUD + leaderboard + history)
+- [x] Format pseudo unifié + DEFAULT_HASHTAG=HETIC + best-score-wins solo
+- [x] Structured JSON logging + HTTP middleware
+- [x] Migration PostgreSQL (asyncpg + SQL brut)

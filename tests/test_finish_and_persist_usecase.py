@@ -2,22 +2,18 @@ import os
 import uuid
 from datetime import datetime, timezone
 
-import aiomysql
 import pytest
 import pytest_asyncio
-from dotenv import load_dotenv
 from redis.asyncio import from_url
 
 from app.domain.exceptions import SessionNotFoundError
 from app.domain.game import GameMode
 from app.domain.session import Session, SessionStatus
-from app.infrastructure.db.game_repository import MysqlGameRepository
-from app.infrastructure.db.player_repository import MysqlPlayerRepository
+from app.infrastructure.db.game_repository import PgGameRepository
+from app.infrastructure.db.player_repository import PgPlayerRepository
 from app.infrastructure.redis.event_buffer import EVENT_BUFFER_KEY_PREFIX, RedisEventBuffer
 from app.infrastructure.redis.session_store import SESSION_KEY_PREFIX, RedisSessionStore
 from app.usecase.finish_and_persist_usecase import FinishAndPersistUseCase
-
-load_dotenv()
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379")
 TTL_SECONDS = 1800
@@ -42,47 +38,13 @@ async def event_buffer(redis_client):
 
 
 @pytest_asyncio.fixture
-async def db_pool():
-    host = os.getenv("DB_HOST", "localhost")
-    if host == "db":
-        host = "localhost"
-    pool = await aiomysql.create_pool(
-        host=host,
-        port=int(os.getenv("DB_PORT", 3306)),
-        user=os.getenv("DB_USER", "flipper"),
-        password=os.getenv("DB_PASSWORD"),
-        db=os.getenv("DB_NAME", "flipper"),
-        minsize=1,
-        maxsize=5,
-        connect_timeout=10,
-    )
-    yield pool
-    pool.close()
-    await pool.wait_closed()
-
-
-@pytest_asyncio.fixture
 async def game_repo(db_pool):
-    return MysqlGameRepository(db_pool)
+    return PgGameRepository(db_pool)
 
 
 @pytest_asyncio.fixture
 async def player_repo(db_pool):
-    return MysqlPlayerRepository(db_pool)
-
-
-@pytest_asyncio.fixture
-async def clean_tables(db_pool):
-    async with db_pool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute("SET FOREIGN_KEY_CHECKS=0")
-            await cursor.execute("DELETE FROM game_events")
-            await cursor.execute("DELETE FROM games")
-            await cursor.execute("DELETE FROM rooms")
-            await cursor.execute("DELETE FROM players")
-            await cursor.execute("SET FOREIGN_KEY_CHECKS=1")
-            await conn.commit()
-    yield
+    return PgPlayerRepository(db_pool)
 
 
 def _build_session(session_id: str, score: int = 0, mode: GameMode = GameMode.SOLO) -> Session:
@@ -131,56 +93,59 @@ async def test_flush_persists_player_game_and_events(
     assert result.player_id > 0
     assert result.game_id > 0
 
-    # Redis cleaned up
     assert await redis_client.exists(SESSION_KEY_PREFIX + session_id) == 0
     assert await redis_client.exists(EVENT_BUFFER_KEY_PREFIX + session_id) == 0
 
-    # DB has the expected rows
     async with db_pool.acquire() as conn:
-        async with conn.cursor(aiomysql.DictCursor) as cursor:
-            await cursor.execute("SELECT * FROM games WHERE id = %s", (result.game_id,))
-            game_row = await cursor.fetchone()
-            assert game_row["score"] == 4200
-            assert game_row["mode"] == "solo"
-            assert game_row["status"] == "finished"
-            assert game_row["finished_at"] is not None
+        game_row = await conn.fetchrow(
+            "SELECT * FROM games WHERE id = $1",
+            result.game_id,
+        )
+        assert game_row["score"] == 4200
+        assert game_row["mode"] == "solo"
+        assert game_row["status"] == "finished"
+        assert game_row["finished_at"] is not None
 
-            await cursor.execute(
-                "SELECT type, points FROM game_events WHERE game_id = %s ORDER BY id ASC",
-                (result.game_id,),
-            )
-            event_rows = await cursor.fetchall()
-            assert [r["type"] for r in event_rows] == ["bumper_hit", "game_over"]
-            assert event_rows[0]["points"] == 100
+        event_rows = await conn.fetch(
+            "SELECT type, points FROM game_events WHERE game_id = $1 ORDER BY id ASC",
+            result.game_id,
+        )
+        assert [r["type"] for r in event_rows] == ["bumper_hit", "game_over"]
+        assert event_rows[0]["points"] == 100
 
 
 @pytest.mark.asyncio
 async def test_flush_reuses_existing_player(
     session_store, event_buffer, game_repo, player_repo, clean_tables, db_pool
 ):
-    # Seed the same pseudo on two consecutive sessions.
     pseudo = "REU#0001"
     session_id_1 = uuid.uuid4().hex
     s1 = _build_session(session_id_1, score=100)
     s1.pseudo = pseudo
     await session_store.create(s1)
 
-    result_1 = await FinishAndPersistUseCase(session_store, event_buffer, game_repo, player_repo).execute(session_id_1)
+    result_1 = await FinishAndPersistUseCase(
+        session_store, event_buffer, game_repo, player_repo
+    ).execute(session_id_1)
 
     session_id_2 = uuid.uuid4().hex
     s2 = _build_session(session_id_2, score=250)
     s2.pseudo = pseudo
     await session_store.create(s2)
 
-    result_2 = await FinishAndPersistUseCase(session_store, event_buffer, game_repo, player_repo).execute(session_id_2)
+    result_2 = await FinishAndPersistUseCase(
+        session_store, event_buffer, game_repo, player_repo
+    ).execute(session_id_2)
 
     assert result_1.player_id == result_2.player_id
     assert result_1.game_id != result_2.game_id
 
     async with db_pool.acquire() as conn:
-        async with conn.cursor(aiomysql.DictCursor) as cursor:
-            await cursor.execute("SELECT COUNT(*) AS c FROM players WHERE pseudo = %s", (pseudo,))
-            assert (await cursor.fetchone())["c"] == 1
+        row = await conn.fetchrow(
+            "SELECT COUNT(*) AS c FROM players WHERE pseudo = $1",
+            pseudo,
+        )
+        assert row["c"] == 1
 
 
 @pytest.mark.asyncio
@@ -190,24 +155,27 @@ async def test_flush_with_no_events_still_creates_game(
     session_id = uuid.uuid4().hex
     await session_store.create(_build_session(session_id, score=42))
 
-    result = await FinishAndPersistUseCase(session_store, event_buffer, game_repo, player_repo).execute(session_id)
+    result = await FinishAndPersistUseCase(
+        session_store, event_buffer, game_repo, player_repo
+    ).execute(session_id)
 
     assert result.event_count == 0
     assert result.final_score == 42
 
     async with db_pool.acquire() as conn:
-        async with conn.cursor(aiomysql.DictCursor) as cursor:
-            await cursor.execute(
-                "SELECT COUNT(*) AS c FROM game_events WHERE game_id = %s",
-                (result.game_id,),
-            )
-            assert (await cursor.fetchone())["c"] == 0
+        row = await conn.fetchrow(
+            "SELECT COUNT(*) AS c FROM game_events WHERE game_id = $1",
+            result.game_id,
+        )
+        assert row["c"] == 0
 
 
 @pytest.mark.asyncio
 async def test_flush_unknown_session_raises(session_store, event_buffer, game_repo, player_repo, clean_tables):
     with pytest.raises(SessionNotFoundError):
-        await FinishAndPersistUseCase(session_store, event_buffer, game_repo, player_repo).execute("ghost-id")
+        await FinishAndPersistUseCase(
+            session_store, event_buffer, game_repo, player_repo
+        ).execute("ghost-id")
 
 
 @pytest.mark.asyncio
@@ -225,17 +193,17 @@ async def test_unknown_event_topics_are_skipped(
         {"topic": "flipper/bumper/hit", "payload": {"points": 5}, "occured_at": "2026-05-23T10:00:02+00:00"},
     )
 
-    result = await FinishAndPersistUseCase(session_store, event_buffer, game_repo, player_repo).execute(session_id)
+    result = await FinishAndPersistUseCase(
+        session_store, event_buffer, game_repo, player_repo
+    ).execute(session_id)
 
     assert result.event_count == 1
     async with db_pool.acquire() as conn:
-        async with conn.cursor(aiomysql.DictCursor) as cursor:
-            await cursor.execute(
-                "SELECT type FROM game_events WHERE game_id = %s",
-                (result.game_id,),
-            )
-            rows = await cursor.fetchall()
-            assert [r["type"] for r in rows] == ["bumper_hit"]
+        rows = await conn.fetch(
+            "SELECT type FROM game_events WHERE game_id = $1",
+            result.game_id,
+        )
+        assert [r["type"] for r in rows] == ["bumper_hit"]
 
 
 @pytest.mark.asyncio
@@ -321,7 +289,6 @@ async def test_solo_flush_with_equal_score_marks_improved_false(
         session_store, event_buffer, game_repo, player_repo
     ).execute(s2_id)
 
-    # Equal score does not beat the record → not "improved".
     assert result.improved is False
     assert result.previous_best == 2500
 
@@ -346,14 +313,12 @@ async def test_one_v_one_flush_after_solo_does_not_use_solo_best_as_previous(
     session_store, event_buffer, game_repo, player_repo, clean_tables
 ):
     pseudo = "MIX#HETIC"
-    # Seed a strong solo score first.
     s1_id = uuid.uuid4().hex
     s1 = _build_session(s1_id, score=8000, mode=GameMode.SOLO)
     s1.pseudo = pseudo
     await session_store.create(s1)
     await FinishAndPersistUseCase(session_store, event_buffer, game_repo, player_repo).execute(s1_id)
 
-    # Now a 1v1 game with a lower score — should be flagged improved=None, not False.
     s2_id = uuid.uuid4().hex
     s2 = _build_session(s2_id, score=200, mode=GameMode.ONE_V_ONE)
     s2.pseudo = pseudo

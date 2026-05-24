@@ -1,162 +1,70 @@
 import pytest
 import pytest_asyncio
-import aiomysql
-from dotenv import load_dotenv
-import os
+
 from app.domain.exceptions import GameAlreadyFinishedError, GameNotFoundError
 from app.domain.game import GameMode, GameStatus
 from app.domain.game_event import GameEventType
-from app.usecase.start_game_usecase import StartGameUseCase
+from app.infrastructure.db.game_event_repository import PgGameEventRepository
+from app.infrastructure.db.game_repository import PgGameRepository
+from app.infrastructure.db.player_repository import PgPlayerRepository
+from app.infrastructure.db.room_repository import PgRoomRepository
 from app.usecase.finish_game_usecase import FinishGameUseCase
-from app.infrastructure.db.player_repository import MysqlPlayerRepository
-from app.infrastructure.db.room_repository import MysqlRoomRepository
-from app.infrastructure.db.game_repository import MysqlGameRepository
-from app.infrastructure.db.game_event_repository import MysqlGameEventRepository
-
-
-load_dotenv()
-
-
-@pytest_asyncio.fixture
-async def db_pool():
-    """
-    Fixture pour créer un pool de connexions MySQL.
-    """
-    host = os.getenv("DB_HOST", "localhost")
-    if host == "db":
-        host = "localhost"
-    
-    pool = await aiomysql.create_pool(
-        host=host,
-        port=int(os.getenv("DB_PORT", 3306)),
-        user=os.getenv("DB_USER", "flipper"),
-        password=os.getenv("DB_PASSWORD"),
-        db=os.getenv("DB_NAME", "flipper"),
-        minsize=1,
-        maxsize=5,
-        connect_timeout=10,
-    )
-    
-    yield pool
-    
-    pool.close()
-    await pool.wait_closed()
+from app.usecase.start_game_usecase import StartGameUseCase
 
 
 @pytest_asyncio.fixture
 async def repositories(db_pool):
-    """
-    Fixture pour créer les instances des repositories.
-    """
     return {
-        "player": MysqlPlayerRepository(db_pool),
-        "room": MysqlRoomRepository(db_pool),
-        "game": MysqlGameRepository(db_pool),
-        "event": MysqlGameEventRepository(db_pool),
+        "player": PgPlayerRepository(db_pool),
+        "room": PgRoomRepository(db_pool),
+        "game": PgGameRepository(db_pool),
+        "event": PgGameEventRepository(db_pool),
     }
 
 
 @pytest_asyncio.fixture
 async def usecase(repositories):
-    """
-    Fixture pour créer une instance du FinishGameUseCase.
-    """
     return FinishGameUseCase(
         game_repo=repositories["game"],
-        event_repo=repositories["event"]
+        event_repo=repositories["event"],
     )
 
 
-@pytest_asyncio.fixture
-async def clean_tables(db_pool):
-    """
-    Fixture pour nettoyer les tables avant et après chaque test.
-    """
-    async with db_pool.acquire() as conn:
-        async with conn.cursor(aiomysql.DictCursor) as cursor:
-            await cursor.execute("SET FOREIGN_KEY_CHECKS=0")
-            await cursor.execute("DELETE FROM game_events")
-            await cursor.execute("DELETE FROM games")
-            await cursor.execute("DELETE FROM rooms")
-            await cursor.execute("DELETE FROM players")
-            await cursor.execute("SET FOREIGN_KEY_CHECKS=1")
-            await conn.commit()
-    
-    yield
-    
-    async with db_pool.acquire() as conn:
-        async with conn.cursor(aiomysql.DictCursor) as cursor:
-            await cursor.execute("SET FOREIGN_KEY_CHECKS=0")
-            await cursor.execute("DELETE FROM game_events")
-            await cursor.execute("DELETE FROM games")
-            await cursor.execute("DELETE FROM rooms")
-            await cursor.execute("DELETE FROM players")
-            await cursor.execute("SET FOREIGN_KEY_CHECKS=1")
-            await conn.commit()
-
-
-@pytest.mark.asyncio
-async def test_finish_game_playing(usecase, repositories, clean_tables):
-    """
-    Test : finir une game PLAYING met le status à FINISHED et crée event.
-    """
-    # 1. Créer une game via StartGameUseCase
+async def _start_game(repositories, pseudo: str):
     start_usecase = StartGameUseCase(
         player_repo=repositories["player"],
         room_repo=repositories["room"],
         game_repo=repositories["game"],
-        event_repo=repositories["event"]
+        event_repo=repositories["event"],
     )
-    
-    start_result = await start_usecase.execute(
-        pseudo="alice",
-        mode=GameMode.SOLO
-    )
+    return await start_usecase.execute(pseudo=pseudo, mode=GameMode.SOLO)
+
+
+@pytest.mark.asyncio
+async def test_finish_game_playing(usecase, repositories, clean_tables):
+    start_result = await _start_game(repositories, "alice")
     game_id = start_result["game"].id
-    
-    # 2. Finir la game
+
     result = await usecase.execute(game_id=game_id)
-    
-    # 3. Vérifier le status et finished_at
+
     assert result["game"].status == GameStatus.FINISHED
     assert result["game"].finished_at is not None
-    
-    # 4. Vérifier que l'événement GAME_OVER a été créé
     assert result["event"].type == GameEventType.GAME_OVER
     assert result["event"].game_id == game_id
 
 
 @pytest.mark.asyncio
 async def test_finish_game_nonexistent(usecase, clean_tables):
-    """
-    Test : finir une game inexistante lève GameNotFoundError.
-    """
     with pytest.raises(GameNotFoundError, match="n'existe pas"):
         await usecase.execute(game_id=999)
 
 
 @pytest.mark.asyncio
 async def test_finish_game_already_finished(usecase, repositories, clean_tables):
-    """
-    Test : finir une game déjà FINISHED lève GameAlreadyFinishedError.
-    """
-    # 1. Créer et finir une game
-    start_usecase = StartGameUseCase(
-        player_repo=repositories["player"],
-        room_repo=repositories["room"],
-        game_repo=repositories["game"],
-        event_repo=repositories["event"]
-    )
-    
-    start_result = await start_usecase.execute(
-        pseudo="bob",
-        mode=GameMode.SOLO
-    )
+    start_result = await _start_game(repositories, "bob")
     game_id = start_result["game"].id
-    
-    # 2. Finir la game
+
     await usecase.execute(game_id=game_id)
-    
-    # 3. Essayer de finir deux fois
+
     with pytest.raises(GameAlreadyFinishedError, match="en état"):
         await usecase.execute(game_id=game_id)
