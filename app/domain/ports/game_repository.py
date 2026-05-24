@@ -67,3 +67,17 @@ class GameRepository(ABC):
     @abstractmethod
     async def get_by_status(self, status: GameStatus) -> list[Game]:
         ...
+
+    @abstractmethod
+    async def get_finished_games_by_player(
+        self,
+        player_id: int,
+        mode: GameMode | None,
+        limit: int,
+    ) -> list[Game]:
+        """Return finished games for a player, newest first.
+
+        Optionally filter by mode. The list is capped by `limit` and ordered
+        by `finished_at DESC`.
+        """
+        ...

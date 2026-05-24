@@ -119,3 +119,116 @@ async def test_get_player_by_pseudo_invalid_format_returns_422(db_pool, clean_pl
     response = await http_client.get("/players", params={"pseudo": "AB"})
     assert response.status_code == 422
     assert response.json()["error"] == "InvalidPseudoError"
+
+
+async def _insert_finished_game(db_pool, player_id: int, mode: str, score: int) -> int:
+    async with db_pool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute(
+                "INSERT INTO games (player_id, room_id, mode, score, status, finished_at) "
+                "VALUES (%s, NULL, %s, %s, 'finished', NOW())",
+                (player_id, mode, score),
+            )
+            await conn.commit()
+            return cursor.lastrowid
+
+
+@pytest.mark.asyncio
+async def test_player_history_returns_games_desc(db_pool, clean_players, http_client):
+    created = await http_client.post("/players", json={"pseudo": "abc"})
+    player_id = created.json()["id"]
+    g1 = await _insert_finished_game(db_pool, player_id, "solo", 100)
+    g2 = await _insert_finished_game(db_pool, player_id, "solo", 200)
+    g3 = await _insert_finished_game(db_pool, player_id, "1v1", 300)
+
+    response = await http_client.get(f"/players/{player_id}/games")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["player_id"] == player_id
+    assert body["pseudo"] == "ABC#HETIC"
+    # Most recent first (g3, g2, g1) — same NOW() but ORDER BY id DESC tie-break.
+    assert [g["game_id"] for g in body["games"]] == [g3, g2, g1]
+    assert all(g["finished_at"] for g in body["games"])
+    assert all(g["started_at"] for g in body["games"])
+
+
+@pytest.mark.asyncio
+async def test_player_history_filters_by_mode(db_pool, clean_players, http_client):
+    created = await http_client.post("/players", json={"pseudo": "abc"})
+    player_id = created.json()["id"]
+    await _insert_finished_game(db_pool, player_id, "solo", 100)
+    g_1v1 = await _insert_finished_game(db_pool, player_id, "1v1", 200)
+
+    response = await http_client.get(f"/players/{player_id}/games", params={"mode": "1v1"})
+
+    body = response.json()
+    assert [g["game_id"] for g in body["games"]] == [g_1v1]
+
+
+@pytest.mark.asyncio
+async def test_player_history_respects_limit(db_pool, clean_players, http_client):
+    created = await http_client.post("/players", json={"pseudo": "abc"})
+    player_id = created.json()["id"]
+    for score in (10, 20, 30, 40, 50):
+        await _insert_finished_game(db_pool, player_id, "solo", score)
+
+    response = await http_client.get(f"/players/{player_id}/games", params={"limit": 2})
+
+    body = response.json()
+    assert len(body["games"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_player_history_ignores_non_finished_games(db_pool, clean_players, http_client):
+    created = await http_client.post("/players", json={"pseudo": "abc"})
+    player_id = created.json()["id"]
+    async with db_pool.acquire() as conn:
+        async with conn.cursor() as cursor:
+            await cursor.execute(
+                "INSERT INTO games (player_id, room_id, mode, score, status) "
+                "VALUES (%s, NULL, 'solo', 999, 'playing')",
+                (player_id,),
+            )
+            await conn.commit()
+
+    response = await http_client.get(f"/players/{player_id}/games")
+    assert response.json()["games"] == []
+
+
+@pytest.mark.asyncio
+async def test_player_history_empty_when_no_games(db_pool, clean_players, http_client):
+    created = await http_client.post("/players", json={"pseudo": "abc"})
+    player_id = created.json()["id"]
+
+    response = await http_client.get(f"/players/{player_id}/games")
+    assert response.status_code == 200
+    assert response.json()["games"] == []
+
+
+@pytest.mark.asyncio
+async def test_player_history_unknown_player_returns_404(db_pool, clean_players, http_client):
+    response = await http_client.get("/players/999999/games")
+    assert response.status_code == 404
+    assert response.json()["error"] == "PlayerNotFoundError"
+
+
+@pytest.mark.parametrize("bad_limit", [0, -1, 101, 9999])
+@pytest.mark.asyncio
+async def test_player_history_rejects_invalid_limit(db_pool, clean_players, http_client, bad_limit):
+    created = await http_client.post("/players", json={"pseudo": "abc"})
+    player_id = created.json()["id"]
+
+    response = await http_client.get(f"/players/{player_id}/games", params={"limit": bad_limit})
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_player_history_rejects_unknown_mode(db_pool, clean_players, http_client):
+    created = await http_client.post("/players", json={"pseudo": "abc"})
+    player_id = created.json()["id"]
+
+    response = await http_client.get(
+        f"/players/{player_id}/games", params={"mode": "battle-royale"}
+    )
+    assert response.status_code == 422

@@ -136,6 +136,30 @@ class MysqlGameRepository(GameRepository):
                 rows = await cursor.fetchall()
                 return [row_to_game(row) for row in rows]
 
+    async def get_finished_games_by_player(
+        self,
+        player_id: int,
+        mode: GameMode | None,
+        limit: int,
+    ) -> list[Game]:
+        sql = (
+            "SELECT id, match_id, player_id, room_id, mode, score, status, started_at, finished_at "
+            "FROM games "
+            "WHERE player_id = %s AND status = %s"
+        )
+        params: list = [player_id, GameStatus.FINISHED.value]
+        if mode is not None:
+            sql += " AND mode = %s"
+            params.append(mode.value)
+        sql += " ORDER BY finished_at DESC, id DESC LIMIT %s"
+        params.append(int(limit))
+
+        async with self.pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(sql, tuple(params))
+                rows = await cursor.fetchall()
+        return [row_to_game(row) for row in rows]
+
     async def persist_finished_session(
         self,
         pseudo: str,
