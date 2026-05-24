@@ -170,7 +170,7 @@ Cas spéciaux :
 | | `SessionEventBroadcaster` | Broadcast WS scoped session |
 | **Infrastructure Redis** | `RedisSessionStore` | Hash + sliding TTL 30min |
 | | `RedisEventBuffer` | List + sliding TTL 30min |
-| **Infrastructure DB** | `MysqlPlayerRepository`, `MysqlGameRepository`, ... | aiomysql + SQL brut |
+| **Infrastructure DB** | `PgPlayerRepository`, `PgGameRepository`, `PgGameEventRepository`, `PgRoomRepository` | asyncpg + SQL brut (PostgreSQL 16) |
 | **Infrastructure MQTT** | `AioMqttGateway` | aiomqtt async client + consumer task |
 | **Infrastructure WS** | `SessionHubManager` | 1 `SessionHub` par session_id |
 | | `HubManager` (legacy room) | 1 `RoomHub` par room_code |
@@ -200,8 +200,8 @@ Cas spéciaux :
 | 5c. `/leaderboard` global et par mode | ✅ Mergé | #98 |
 | 5d. Historique d'un joueur (`GET /players/{id}/games`) | ✅ Mergé | #99 |
 | 5e. Best score wins (solo) — `improved` + `is_best` | ✅ Mergé | #100 |
-| 5f. Structured JSON logging + HTTP middleware | 🚧 En cours | feat/structured-logging |
-| 6. Migration MySQL → PostgreSQL | 📌 À faire | #89 |
+| 5f. Structured JSON logging + HTTP middleware | ✅ Mergé | #101 |
+| 6. Migration MySQL → PostgreSQL | 🚧 En cours | feat/postgres-migration |
 | 7. Best score wins (solo) | 📌 À faire | #96 |
 | 8. Historique d'un joueur | 📌 À faire | #58 |
 

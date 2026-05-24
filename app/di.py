@@ -2,32 +2,32 @@
 injection de dépendances pour les repositories
 """
 
-import aiomysql
+import asyncpg
 from redis.asyncio import Redis
 
 from app.config import get_settings
+from app.domain.ports.event_buffer import EventBuffer
 from app.domain.ports.game_event_repository import GameEventRepository
 from app.domain.ports.game_repository import GameRepository
+from app.domain.ports.mqtt_gateway import MqttGateway
 from app.domain.ports.player_repository import PlayerRepository
 from app.domain.ports.room_repository import RoomRepository
-from app.domain.ports.event_buffer import EventBuffer
-from app.domain.ports.mqtt_gateway import MqttGateway
 from app.domain.ports.session_store import SessionStore
-from app.infrastructure.db.game_event_repository import MysqlGameEventRepository
-from app.infrastructure.db.game_repository import MysqlGameRepository
-from app.infrastructure.db.player_repository import MysqlPlayerRepository
-from app.infrastructure.db.room_repository import MysqlRoomRepository
+from app.infrastructure.db.game_event_repository import PgGameEventRepository
+from app.infrastructure.db.game_repository import PgGameRepository
+from app.infrastructure.db.player_repository import PgPlayerRepository
+from app.infrastructure.db.room_repository import PgRoomRepository
 from app.infrastructure.redis.event_buffer import RedisEventBuffer
 from app.infrastructure.redis.session_store import RedisSessionStore
 from app.infrastructure.ws.room_hub import hub_manager
 from app.infrastructure.ws.session_hub import session_hub_manager
 
-_db_pool: aiomysql.Pool | None = None
+_db_pool: asyncpg.Pool | None = None
 _redis_client: Redis | None = None
 _mqtt_gateway: MqttGateway | None = None
 
 
-def set_db_pool(pool: aiomysql.Pool):
+def set_db_pool(pool: asyncpg.Pool):
     global _db_pool
     _db_pool = pool
 
@@ -45,25 +45,25 @@ def set_mqtt_gateway(gateway: MqttGateway):
 def get_player_repo() -> PlayerRepository:
     if _db_pool is None:
         raise RuntimeError("Database pool not initialized")
-    return MysqlPlayerRepository(_db_pool)
+    return PgPlayerRepository(_db_pool)
 
 
 def get_room_repo() -> RoomRepository:
     if _db_pool is None:
         raise RuntimeError("Database pool not initialized")
-    return MysqlRoomRepository(_db_pool)
+    return PgRoomRepository(_db_pool)
 
 
 def get_game_repo() -> GameRepository:
     if _db_pool is None:
         raise RuntimeError("Database pool not initialized")
-    return MysqlGameRepository(_db_pool)
+    return PgGameRepository(_db_pool)
 
 
 def get_event_repo() -> GameEventRepository:
     if _db_pool is None:
         raise RuntimeError("Database pool not initialized")
-    return MysqlGameEventRepository(_db_pool)
+    return PgGameEventRepository(_db_pool)
 
 
 def get_session_store() -> SessionStore:

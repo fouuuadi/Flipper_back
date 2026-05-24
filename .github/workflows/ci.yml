@@ -25,20 +25,19 @@ jobs:
   tests:
     runs-on: ubuntu-latest
     services:
-      mysql:
-        image: mysql:8.4
+      postgres:
+        image: postgres:16-alpine
         env:
-          MYSQL_ROOT_PASSWORD: rootpass
-          MYSQL_DATABASE: flipper
-          MYSQL_USER: flipper
-          MYSQL_PASSWORD: flipperpass
+          POSTGRES_DB: flipper
+          POSTGRES_USER: flipper
+          POSTGRES_PASSWORD: flipperpass
         options: >-
-          --health-cmd="mysqladmin ping"
+          --health-cmd="pg_isready -U flipper -d flipper"
           --health-interval=10s
           --health-timeout=5s
-          --health-retries=3
+          --health-retries=5
         ports:
-          - 3306:3306
+          - 5432:5432
       redis:
         image: redis:7-alpine
         options: >-
@@ -60,6 +59,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Install psql client
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends postgresql-client
+
       - name: Start MQTT broker
         run: |
           docker run -d --name flipper_mqtt -p 1883:1883 \
@@ -78,25 +80,20 @@ jobs:
 
       - name: Initialize database
         env:
-          DB_HOST: 127.0.0.1
-          DB_USER: flipper
-          DB_PASSWORD: flipperpass
-          DB_NAME: flipper
+          PGPASSWORD: flipperpass
         run: |
-          mysql -h 127.0.0.1 -u flipper -pflipperpass flipper < db/init/001_create_players.sql
-          mysql -h 127.0.0.1 -u flipper -pflipperpass flipper < db/init/002_create_rooms.sql
-          mysql -h 127.0.0.1 -u flipper -pflipperpass flipper < db/init/003_create_games.sql
-          mysql -h 127.0.0.1 -u flipper -pflipperpass flipper < db/init/004_create_game_events.sql
-          mysql -h 127.0.0.1 -u flipper -pflipperpass flipper < db/init/005_alter_games_room_id_nullable.sql
+          for f in db/init/*.sql; do
+            echo "Applying $f"
+            psql -h 127.0.0.1 -U flipper -d flipper -v ON_ERROR_STOP=1 -f "$f"
+          done
 
       - name: Run tests
         env:
           DB_HOST: 127.0.0.1
-          DB_PORT: 3306
+          DB_PORT: 5432
           DB_USER: flipper
           DB_PASSWORD: flipperpass
           DB_NAME: flipper
-          MYSQL_DATABASE: flipper
           REDIS_URL: redis://127.0.0.1:6379
           MQTT_BROKER_HOST: 127.0.0.1
           MQTT_BROKER_PORT: 1883

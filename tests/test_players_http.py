@@ -1,48 +1,23 @@
-import os
-
-import aiomysql
 import pytest
 import pytest_asyncio
-from dotenv import load_dotenv
 from httpx import ASGITransport, AsyncClient
 
 from app import di
 from app.main import app
-
-load_dotenv()
+from tests.conftest import make_db_pool, truncate_all
 
 
 @pytest_asyncio.fixture
 async def db_pool():
-    host = os.getenv("DB_HOST", "localhost")
-    if host == "db":
-        host = "localhost"
-    pool = await aiomysql.create_pool(
-        host=host,
-        port=int(os.getenv("DB_PORT", 3306)),
-        user=os.getenv("DB_USER", "flipper"),
-        password=os.getenv("DB_PASSWORD"),
-        db=os.getenv("DB_NAME", "flipper"),
-        minsize=1,
-        maxsize=5,
-        connect_timeout=10,
-    )
+    pool = await make_db_pool()
     di.set_db_pool(pool)
     yield pool
-    pool.close()
-    await pool.wait_closed()
+    await pool.close()
 
 
 @pytest_asyncio.fixture
 async def clean_players(db_pool):
-    async with db_pool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute("SET FOREIGN_KEY_CHECKS=0")
-            await cursor.execute("DELETE FROM game_events")
-            await cursor.execute("DELETE FROM games")
-            await cursor.execute("DELETE FROM players")
-            await cursor.execute("SET FOREIGN_KEY_CHECKS=1")
-            await conn.commit()
+    await truncate_all(db_pool)
     yield
 
 
@@ -54,6 +29,18 @@ async def http_client():
         yield client
 
 
+async def _insert_finished_game(db_pool, player_id: int, mode: str, score: int) -> int:
+    async with db_pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "INSERT INTO games (player_id, room_id, mode, score, status, finished_at) "
+            "VALUES ($1, NULL, $2, $3, 'finished', NOW()) RETURNING id",
+            player_id,
+            mode,
+            score,
+        )
+    return row["id"]
+
+
 @pytest.mark.asyncio
 async def test_post_players_creates_then_returns_same_player(db_pool, clean_players, http_client):
     first = await http_client.post("/players", json={"pseudo": "abc"})
@@ -62,7 +49,6 @@ async def test_post_players_creates_then_returns_same_player(db_pool, clean_play
     assert body1["pseudo"] == "ABC#HETIC"
     assert body1["id"] > 0
 
-    # Idempotent: a second POST with the same pseudo returns the same row.
     second = await http_client.post("/players", json={"pseudo": "ABC"})
     assert second.status_code == 200
     body2 = second.json()
@@ -121,18 +107,6 @@ async def test_get_player_by_pseudo_invalid_format_returns_422(db_pool, clean_pl
     assert response.json()["error"] == "InvalidPseudoError"
 
 
-async def _insert_finished_game(db_pool, player_id: int, mode: str, score: int) -> int:
-    async with db_pool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute(
-                "INSERT INTO games (player_id, room_id, mode, score, status, finished_at) "
-                "VALUES (%s, NULL, %s, %s, 'finished', NOW())",
-                (player_id, mode, score),
-            )
-            await conn.commit()
-            return cursor.lastrowid
-
-
 @pytest.mark.asyncio
 async def test_player_history_returns_games_desc(db_pool, clean_players, http_client):
     created = await http_client.post("/players", json={"pseudo": "abc"})
@@ -147,7 +121,6 @@ async def test_player_history_returns_games_desc(db_pool, clean_players, http_cl
     body = response.json()
     assert body["player_id"] == player_id
     assert body["pseudo"] == "ABC#HETIC"
-    # Most recent first (g3, g2, g1) — same NOW() but ORDER BY id DESC tie-break.
     assert [g["game_id"] for g in body["games"]] == [g3, g2, g1]
     assert all(g["finished_at"] for g in body["games"])
     assert all(g["started_at"] for g in body["games"])
@@ -184,13 +157,11 @@ async def test_player_history_ignores_non_finished_games(db_pool, clean_players,
     created = await http_client.post("/players", json={"pseudo": "abc"})
     player_id = created.json()["id"]
     async with db_pool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute(
-                "INSERT INTO games (player_id, room_id, mode, score, status) "
-                "VALUES (%s, NULL, 'solo', 999, 'playing')",
-                (player_id,),
-            )
-            await conn.commit()
+        await conn.execute(
+            "INSERT INTO games (player_id, room_id, mode, score, status) "
+            "VALUES ($1, NULL, 'solo', 999, 'playing')",
+            player_id,
+        )
 
     response = await http_client.get(f"/players/{player_id}/games")
     assert response.json()["games"] == []

@@ -1,49 +1,23 @@
-import os
-
-import aiomysql
 import pytest
 import pytest_asyncio
-from dotenv import load_dotenv
 from httpx import ASGITransport, AsyncClient
 
 from app import di
 from app.main import app
-
-load_dotenv()
+from tests.conftest import make_db_pool, truncate_all
 
 
 @pytest_asyncio.fixture
 async def db_pool():
-    host = os.getenv("DB_HOST", "localhost")
-    if host == "db":
-        host = "localhost"
-    pool = await aiomysql.create_pool(
-        host=host,
-        port=int(os.getenv("DB_PORT", 3306)),
-        user=os.getenv("DB_USER", "flipper"),
-        password=os.getenv("DB_PASSWORD"),
-        db=os.getenv("DB_NAME", "flipper"),
-        minsize=1,
-        maxsize=5,
-        connect_timeout=10,
-    )
+    pool = await make_db_pool()
     di.set_db_pool(pool)
     yield pool
-    pool.close()
-    await pool.wait_closed()
+    await pool.close()
 
 
 @pytest_asyncio.fixture
 async def clean_tables(db_pool):
-    async with db_pool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute("SET FOREIGN_KEY_CHECKS=0")
-            await cursor.execute("DELETE FROM game_events")
-            await cursor.execute("DELETE FROM games")
-            await cursor.execute("DELETE FROM rooms")
-            await cursor.execute("DELETE FROM players")
-            await cursor.execute("SET FOREIGN_KEY_CHECKS=1")
-            await conn.commit()
+    await truncate_all(db_pool)
     yield
 
 
@@ -57,22 +31,23 @@ async def http_client():
 
 async def _insert_player(db_pool, pseudo: str) -> int:
     async with db_pool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute("INSERT INTO players (pseudo) VALUES (%s)", (pseudo,))
-            await conn.commit()
-            return cursor.lastrowid
+        row = await conn.fetchrow(
+            "INSERT INTO players (pseudo) VALUES ($1) RETURNING id",
+            pseudo,
+        )
+    return row["id"]
 
 
 async def _insert_finished_game(db_pool, player_id: int, mode: str, score: int) -> int:
     async with db_pool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute(
-                "INSERT INTO games (player_id, room_id, mode, score, status, finished_at) "
-                "VALUES (%s, NULL, %s, %s, 'finished', NOW())",
-                (player_id, mode, score),
-            )
-            await conn.commit()
-            return cursor.lastrowid
+        row = await conn.fetchrow(
+            "INSERT INTO games (player_id, room_id, mode, score, status, finished_at) "
+            "VALUES ($1, NULL, $2, $3, 'finished', NOW()) RETURNING id",
+            player_id,
+            mode,
+            score,
+        )
+    return row["id"]
 
 
 @pytest.mark.asyncio
@@ -81,7 +56,7 @@ async def test_leaderboard_returns_top_scores_ordered_desc(db_pool, clean_tables
     p2 = await _insert_player(db_pool, "BBB#HETIC")
     p3 = await _insert_player(db_pool, "CCC#HETIC")
     await _insert_finished_game(db_pool, p1, "solo", 1000)
-    await _insert_finished_game(db_pool, p1, "solo", 4200)  # p1 best = 4200
+    await _insert_finished_game(db_pool, p1, "solo", 4200)
     await _insert_finished_game(db_pool, p2, "solo", 2500)
     await _insert_finished_game(db_pool, p3, "solo", 3000)
 
@@ -116,7 +91,7 @@ async def test_leaderboard_without_mode_aggregates_all_modes(db_pool, clean_tabl
     p1 = await _insert_player(db_pool, "AAA#HETIC")
     p2 = await _insert_player(db_pool, "BBB#HETIC")
     await _insert_finished_game(db_pool, p1, "solo", 100)
-    await _insert_finished_game(db_pool, p1, "1v1", 8000)  # p1 max across modes
+    await _insert_finished_game(db_pool, p1, "1v1", 8000)
     await _insert_finished_game(db_pool, p2, "solo", 3000)
 
     response = await http_client.get("/leaderboard")
@@ -144,13 +119,11 @@ async def test_leaderboard_respects_limit(db_pool, clean_tables, http_client):
 async def test_leaderboard_ignores_non_finished_games(db_pool, clean_tables, http_client):
     p1 = await _insert_player(db_pool, "AAA#HETIC")
     async with db_pool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute(
-                "INSERT INTO games (player_id, room_id, mode, score, status) "
-                "VALUES (%s, NULL, 'solo', 9999, 'playing')",
-                (p1,),
-            )
-            await conn.commit()
+        await conn.execute(
+            "INSERT INTO games (player_id, room_id, mode, score, status) "
+            "VALUES ($1, NULL, 'solo', 9999, 'playing')",
+            p1,
+        )
 
     response = await http_client.get("/leaderboard", params={"mode": "solo"})
     assert response.json()["entries"] == []
