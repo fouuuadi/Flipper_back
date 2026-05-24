@@ -52,9 +52,10 @@ On migre vers une **nouvelle archi** (Redis sessions, MQTT IoT, écriture DB en 
 
 ```
 app/
-├── config.py                          # ✅ Settings pydantic-settings (ADAPTER pour PG + Redis + MQTT)
+├── config.py                          # ✅ Settings pydantic-settings (ADAPTER pour PG + Redis + MQTT + log_level)
 ├── di.py                              # ✅ Composition root (ADAPTER pour nouveaux repos + services)
-├── main.py                            # ✅ Entry FastAPI + lifespan (ADAPTER pour Redis + MQTT connect)
+├── main.py                            # ✅ Entry FastAPI + lifespan (configure_logging + middleware HTTP)
+├── logging_config.py                  # 🆕 JsonFormatter + configure_logging (stdlib only)
 ├── domain/                            # ✅ GARDER — couche métier pure
 │   ├── player.py, room.py, game.py    # ✅ Entités Pydantic existantes
 │   ├── game_event.py, match.py        # ✅ Garder
@@ -109,6 +110,7 @@ app/
     │   ├── scores.py                  # 🆕 POST /scores (flush final → DB)
     │   ├── players.py                 # 🆕 POST /players, GET /players/{id}, GET /players?pseudo=X
     │   ├── leaderboard.py             # 🆕 GET /leaderboard?mode=&limit=
+    │   ├── logging_middleware.py      # 🆕 Middleware HTTP — request_id + duration_ms + JSON log
     │   ├── error_handler.py           # ✅
     │   ├── dtos.py                    # ✅ (étendre)
     │   └── schemas/                   # ✅ (étendre)

@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     mqtt_broker_port: int = 1883
     mqtt_topic_filter: str = "flipper/#"
 
+    log_level: str = "INFO"
+
 
 @lru_cache
 def get_settings() -> Settings:
