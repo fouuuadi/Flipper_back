@@ -1,4 +1,3 @@
-import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -8,10 +7,12 @@ from app.domain.ports.mqtt_gateway import MqttEvent
 from app.infrastructure.db.mysql import connect, disconnect
 from app.infrastructure.mqtt.aio_mqtt_gateway import AioMqttGateway
 from app.infrastructure.redis import client as redis_client
+from app.logging_config import configure_logging
 from app.usecase.handle_mqtt_event_usecase import HandleMqttEventUseCase
 from app import di
 from app.transport.http.error_handler import register_error_handlers
 from app.transport.http.health import router as health_router
+from app.transport.http.logging_middleware import http_logging_middleware
 from app.transport.http.root import router as root_router
 from app.transport.http.games import router as games_router
 from app.transport.http.leaderboard import router as leaderboard_router
@@ -21,12 +22,11 @@ from app.transport.http.scores import router as scores_router
 from app.transport.http.sessions import router as sessions_router
 from app.transport.ws.handler import router as ws_router
 
-logging.basicConfig(level=logging.INFO)
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings = get_settings()
+    configure_logging(settings.log_level)
     db_pool = await connect(settings)
     di.set_db_pool(db_pool)
     redis = await redis_client.connect(settings.redis_url)
@@ -54,6 +54,8 @@ async def lifespan(app: FastAPI):
     await disconnect()
 
 app = FastAPI(title="Flipper Backend", lifespan=lifespan)
+
+app.middleware("http")(http_logging_middleware)
 
 register_error_handlers(app)
 

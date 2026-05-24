@@ -181,7 +181,9 @@ Cas spéciaux :
 | | `GetLeaderboardUseCase` | Hors flow — top scores |
 | | `GetPlayerHistoryUseCase` | Hors flow — historique d'un joueur |
 | **Transport HTTP** | `sessions.py`, `scores.py`, `players.py`, `leaderboard.py`, `rooms.py`, `games.py` | Endpoints REST |
+| | `logging_middleware.py` | Observabilité — JSON log par requête + `X-Request-ID` |
 | **Transport WS** | `handler.py` | `/ws` (session_id XOR room_code) |
+| **Observabilité** | `app/logging_config.py` | `JsonFormatter` stdlib + `configure_logging(level)` appelé en lifespan |
 
 ---
 
@@ -197,7 +199,8 @@ Cas spéciaux :
 | 5b. `/players` CRUD + format pseudo unifié | ✅ Mergé | #97 |
 | 5c. `/leaderboard` global et par mode | ✅ Mergé | #98 |
 | 5d. Historique d'un joueur (`GET /players/{id}/games`) | ✅ Mergé | #99 |
-| 5e. Best score wins (solo) — `improved` + `is_best` | 🚧 En cours | feat/best-score-wins |
+| 5e. Best score wins (solo) — `improved` + `is_best` | ✅ Mergé | #100 |
+| 5f. Structured JSON logging + HTTP middleware | 🚧 En cours | feat/structured-logging |
 | 6. Migration MySQL → PostgreSQL | 📌 À faire | #89 |
 | 7. Best score wins (solo) | 📌 À faire | #96 |
 | 8. Historique d'un joueur | 📌 À faire | #58 |
@@ -241,6 +244,23 @@ Toutes les routes appliquent `normalize_and_validate` sur le pseudo → uppercas
 > 2. `POST /scores` (flush de fin de partie) — upsert implicite via `persist_finished_session`
 >
 > Les deux passent par le même format `XXX#YYYYY`, donc un joueur qui a fait `POST /sessions` puis `POST /scores` puis `POST /players` aura **une seule ligne en DB** (idempotence via `get_by_pseudo`).
+
+---
+
+## Observabilité
+
+- `configure_logging(level)` (dans `app/logging_config.py`) installe un unique handler `StreamHandler` sur le root logger, avec un `JsonFormatter` stdlib-only. Niveau pilotable via la var d'env `LOG_LEVEL` (défaut `INFO`).
+- Chaque requête HTTP traverse `http_logging_middleware` qui :
+  - génère un `request_id` (UUID hex)
+  - mesure la durée en `time.perf_counter()`
+  - émet un log JSON `http_request` avec `method`, `path`, `status_code`, `duration_ms`, `request_id`
+  - répond avec un header `X-Request-ID` (le client peut corréler ses appels avec les logs serveur)
+- Tous les `logger.info(...)`, `logger.warning(...)` existants (MySQL retries, Redis connect, MQTT subscribe, WS connect/disconnect) **héritent automatiquement** du format JSON via le root logger.
+
+Exemple de log émis :
+```json
+{"timestamp":"2026-05-24T14:32:11.456789Z","level":"INFO","logger":"app.http","message":"http_request","method":"POST","path":"/sessions","status_code":201,"duration_ms":12.34,"request_id":"a7f3..."}
+```
 
 ---
 
