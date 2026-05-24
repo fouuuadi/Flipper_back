@@ -59,6 +59,7 @@ app/
 │   ├── player.py, room.py, game.py    # ✅ Entités Pydantic existantes
 │   ├── game_event.py, match.py        # ✅ Garder
 │   ├── session.py                     # 🆕 Entité Session (éphémère, pas en DB)
+│   ├── leaderboard_entry.py           # 🆕 Entité projection (rank, player_id, pseudo, score)
 │   ├── pseudo.py                      # 🆕 Helper format pseudo XXX#YYYYY + DEFAULT_HASHTAG=HETIC
 │   ├── exceptions.py                  # ✅ DomainError + InvalidPseudoError + filles
 │   └── ports/                         # ✅ Interfaces ABC existantes
@@ -96,7 +97,8 @@ app/
 │   ├── handle_mqtt_event_usecase.py   # 🆕 Recevoir event MQTT → mettre à jour session → broadcaster WS
 │   ├── finish_and_persist_usecase.py  # 🆕 Flush session Redis → DB atomique (POST /scores)
 │   ├── create_or_get_player_usecase.py # 🆕 Upsert idempotent Player par pseudo
-│   └── get_player_usecase.py          # 🆕 Lookup Player par id ou pseudo
+│   ├── get_player_usecase.py          # 🆕 Lookup Player par id ou pseudo
+│   └── get_leaderboard_usecase.py     # 🆕 Top N scores filtrables par mode
 └── transport/
     ├── http/
     │   ├── root.py, health.py         # ✅
@@ -105,6 +107,7 @@ app/
     │   ├── sessions.py                # 🆕 POST /sessions, POST /sessions/{id}/ready
     │   ├── scores.py                  # 🆕 POST /scores (flush final → DB)
     │   ├── players.py                 # 🆕 POST /players, GET /players/{id}, GET /players?pseudo=X
+    │   ├── leaderboard.py             # 🆕 GET /leaderboard?mode=&limit=
     │   ├── error_handler.py           # ✅
     │   ├── dtos.py                    # ✅ (étendre)
     │   └── schemas/                   # ✅ (étendre)

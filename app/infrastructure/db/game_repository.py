@@ -5,6 +5,7 @@ import aiomysql
 
 from app.domain.game import Game, GameMode, GameStatus
 from app.domain.game_event import GameEventType
+from app.domain.leaderboard_entry import LeaderboardEntry
 from app.domain.ports.game_repository import GameRepository
 from app.infrastructure.db.mappers.game_mapper import row_to_game
 
@@ -92,6 +93,38 @@ class MysqlGameRepository(GameRepository):
                     (game_id,),
                 )
                 return row_to_game(await cursor.fetchone())
+
+    async def leaderboard(
+        self,
+        mode: GameMode | None,
+        limit: int,
+    ) -> list[LeaderboardEntry]:
+        sql = (
+            "SELECT p.id AS player_id, p.pseudo AS pseudo, MAX(g.score) AS score "
+            "FROM games g "
+            "JOIN players p ON g.player_id = p.id "
+            "WHERE g.status = %s"
+        )
+        params: list = [GameStatus.FINISHED.value]
+        if mode is not None:
+            sql += " AND g.mode = %s"
+            params.append(mode.value)
+        sql += " GROUP BY p.id, p.pseudo ORDER BY score DESC, p.id ASC LIMIT %s"
+        params.append(int(limit))
+
+        async with self.pool.acquire() as conn:
+            async with conn.cursor(aiomysql.DictCursor) as cursor:
+                await cursor.execute(sql, tuple(params))
+                rows = await cursor.fetchall()
+        return [
+            LeaderboardEntry(
+                rank=index,
+                player_id=row["player_id"],
+                pseudo=row["pseudo"],
+                score=int(row["score"]),
+            )
+            for index, row in enumerate(rows, start=1)
+        ]
 
     async def get_by_status(self, status: GameStatus) -> list[Game]:
         async with self.pool.acquire() as conn:

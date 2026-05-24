@@ -3,11 +3,25 @@ from datetime import datetime
 from typing import Any
 
 from app.domain.game import Game, GameMode, GameStatus
+from app.domain.leaderboard_entry import LeaderboardEntry
 
 
 class GameRepository(ABC):
     @abstractmethod
     async def create(self, player_id: int, room_id: int | None, mode: GameMode) -> Game:
+        ...
+
+    @abstractmethod
+    async def leaderboard(
+        self,
+        mode: GameMode | None,
+        limit: int,
+    ) -> list[LeaderboardEntry]:
+        """Top `limit` finished games, best score per player, sorted DESC.
+
+        If `mode` is `None`, consider every mode and take the best score across
+        all modes for each player. `rank` is filled by the repo (1-based).
+        """
         ...
 
     @abstractmethod
