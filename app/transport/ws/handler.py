@@ -71,7 +71,7 @@ async def _serve_session(
     try:
         while True:
             raw = await websocket.receive_text()
-            await _handle_session_command(raw, session_id, session_store, hub)
+            await _handle_session_command(raw, session_id, session_store, session_hub_manager)
     except WebSocketDisconnect:
         await hub.remove_client(websocket)
         logger.info("[ws] disconnected from session %s", session_id)
