@@ -10,8 +10,9 @@ from app.domain.game import GameMode
 
 class SessionStatus(str, Enum):
     WAITING = "waiting"   # session créée, en attente du ready
-    READY = "ready"       # joueur prêt, en attente du game:start
-    PLAYING = "playing"   # partie en cours
+    READY = "ready"       # joueur prêt, countdown en cours
+    PLAYING = "playing"   # partie en cours, events MQTT score/ball traités
+    PAUSED = "paused"     # partie en cours mais events MQTT ignorés (pause UI)
     OVER = "over"         # partie finie, en attente du POST /scores
 
 

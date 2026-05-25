@@ -154,21 +154,22 @@ Pour les erreurs **structurelles** (session inexistante, payload mal formé), le
 
 ## Découpage en issues back
 
-### back#A — `SessionStatus.PAUSED` + `cmd:*` côté WS
-- Ajout de l'enum
-- 3 use cases (pause / resume / abandon)
-- Handler WS lit les messages entrants, route vers use case
-- Broadcast `match:state` à chaque transition
-- Tests : transitions autorisées / interdites, idempotence, broadcast effectif
+### back#A — `SessionStatus.PAUSED` + `cmd:*` côté WS ✅ (issue #105)
+- ✅ Ajout de l'enum
+- ✅ 3 use cases (pause / resume / abandon)
+- ✅ Handler WS lit les messages entrants, route vers use case
+- ✅ Broadcast `match:state` à chaque transition
+- ✅ Tests : transitions autorisées / interdites, idempotence, broadcast effectif
 
-### back#B — Countdown pré-partie
-- `StartCountdownUseCase` (asyncio task lancé sur `ready_up`)
-- `HandleMqttEventUseCase` ignore score/lives si `status != PLAYING`
-- Tests : timing (mock asyncio), gating MQTT pendant countdown
+### back#B — Countdown pré-partie ✅ (issue #106)
+- ✅ `StartCountdownUseCase` (asyncio task lancé sur `ready_up` via callback `on_ready`)
+- ✅ `HandleMqttEventUseCase` ignore score/lives si `status != PLAYING`
+- ✅ Tests : sleep injectable (pas d'attente réelle), gating MQTT pendant countdown, edge case "cmd:abandon en cours de countdown"
 
-### back#C — Émission systématique de `match:state` aux transitions existantes
-- Ajout dans `ReadyUpUseCase`, `FinishAndPersistUseCase`, etc.
-- Tests : présence du message dans le hub à chaque transition existante
+### back#C — Émission systématique de `match:state` aux transitions existantes ✅ (issue #104)
+- ✅ `ReadyUpUseCase` broadcast `match:state: ready`
+- ✅ `HandleMqttEventUseCase` broadcast `match:state: over` en plus de `game:over` sur `flipper/game/over`
+- ✅ Tests : présence du message dans le hub à chaque transition
 
 ### back#D (optionnel, plus tard)
 - Topics MQTT `flipper/pause` et `flipper/resume` pour piloter les transitions depuis le hardware (gros bouton physique pause sur la borne)

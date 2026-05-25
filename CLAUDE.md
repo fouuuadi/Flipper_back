@@ -100,7 +100,11 @@ app/
 │   ├── create_or_get_player_usecase.py # 🆕 Upsert idempotent Player par pseudo
 │   ├── get_player_usecase.py          # 🆕 Lookup Player par id ou pseudo
 │   ├── get_leaderboard_usecase.py     # 🆕 Top N scores filtrables par mode
-│   └── get_player_history_usecase.py  # 🆕 Historique de games terminées d'un joueur
+│   ├── get_player_history_usecase.py  # 🆕 Historique de games terminées d'un joueur
+│   ├── pause_session_usecase.py       # 🆕 cmd:pause WS — PLAYING → PAUSED
+│   ├── resume_session_usecase.py      # 🆕 cmd:resume WS — PAUSED → PLAYING
+│   ├── abandon_session_usecase.py     # 🆕 cmd:abandon WS — PLAYING|PAUSED → OVER
+│   └── start_countdown_usecase.py     # 🆕 Asyncio task pré-partie 3-2-1-0
 └── transport/
     ├── http/
     │   ├── root.py, health.py         # ✅
@@ -115,7 +119,7 @@ app/
     │   ├── dtos.py                    # ✅ (étendre)
     │   └── schemas/                   # ✅ (étendre)
     └── ws/
-        └── handler.py                 # 🔄 Adapter : WS par session_id en plus de room_code
+        └── handler.py                 # ✅ WS par session_id, parse cmd:pause/resume/abandon (MATCH_SYNC)
 tests/                                 # ✅ 70+ tests existants — NE RIEN CASSER, ajouter
 db/init/                               # 🔄 Adapter pour PostgreSQL
 ```

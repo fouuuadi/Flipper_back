@@ -51,6 +51,18 @@ class HandleMqttEventUseCase:
             )
             return
 
+        # Gate score/ball events on the session being actively in PLAYING.
+        # During READY (countdown), PAUSED (UI pause) or OVER, the hardware
+        # may still emit MQTT events but they must not pollute the score.
+        if session.status is not SessionStatus.PLAYING:
+            logger.debug(
+                "MQTT event on %s dropped: session %s is %s (not PLAYING)",
+                event.topic,
+                session_id,
+                session.status.value,
+            )
+            return
+
         ws_message = self._apply(event, session)
         if ws_message is None:
             return  # unknown / ignored topic — session left untouched
@@ -65,6 +77,21 @@ class HandleMqttEventUseCase:
             },
         )
         await self._broadcaster.broadcast_to_session(session_id, ws_message)
+
+        # `flipper/game/over` triggers two distinct messages: `game:over`
+        # (score-final notification, already built by _apply) and
+        # `match:state: over` (session lifecycle transition driving the
+        # front state machine to gameOver). Front clients can subscribe to
+        # whichever they need.
+        if event.topic == TOPIC_GAME_OVER:
+            await self._broadcaster.broadcast_to_session(
+                session_id,
+                {
+                    "type": "match:state",
+                    "status": session.status.value,
+                    "sessionId": session_id,
+                },
+            )
 
     @staticmethod
     def _apply(event: MqttEvent, session: Session) -> dict | None:

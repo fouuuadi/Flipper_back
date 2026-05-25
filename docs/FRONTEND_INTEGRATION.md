@@ -590,7 +590,9 @@ Tous les events ont la même forme `{ type: string, ...payload }` :
 type WsEvent =
   | WsScoreUpdate
   | WsBallLost
-  | WsGameOver;
+  | WsGameOver
+  | WsMatchState
+  | WsCountdownTick;
 
 interface WsScoreUpdate {
   type: "score:update";
@@ -611,7 +613,39 @@ interface WsGameOver {
   type: "game:over";
   finalScore: number;
 }
+
+// 🆕 Protocole MATCH_SYNC
+
+interface WsMatchState {
+  type: "match:state";
+  status: "ready" | "playing" | "paused" | "over";
+  sessionId: string;
+}
+
+interface WsCountdownTick {
+  type: "countdown:tick";
+  value: 3 | 2 | 1 | 0;
+}
 ```
+
+**Quand chaque event est émis**
+
+| Event | Déclencheur côté back |
+|---|---|
+| `match:state: ready` | `POST /sessions/{id}/ready` (statut → `READY`) |
+| `countdown:tick` × 4 | Boucle 1s post-`ready`, valeurs `3 → 2 → 1 → 0` |
+| `match:state: playing` | Fin du countdown (statut → `PLAYING`), OU `cmd:resume` reçu |
+| `score:update` | MQTT `flipper/bumper/hit` ou `flipper/bonus` reçu pendant `PLAYING` |
+| `ball:lost` | MQTT `flipper/ball/lost` reçu pendant `PLAYING` |
+| `game:over` | MQTT `flipper/game/over` reçu pendant `PLAYING` |
+| `match:state: paused` | `cmd:pause` reçu (du client) pendant `PLAYING` |
+| `match:state: over` | MQTT `flipper/game/over` (en plus de `game:over`) OU `cmd:abandon` reçu |
+
+> ⚠️ **`match:state: over` vs `game:over`** :
+> - `game:over` signale "score final acquis naturellement" (avec `finalScore` dans le payload)
+> - `match:state: over` signale "fin de cycle de session" (transition d'écran vers `gameOver`)
+> - Sur fin de jeu naturelle (MQTT `flipper/game/over`) : **les deux messages sont broadcastés**
+> - Sur `cmd:abandon` : **uniquement** `match:state: over` (pas un game over naturel)
 
 **Mapping avec `RuntimeEventMap` côté front**
 
@@ -619,11 +653,30 @@ interface WsGameOver {
 |---|---|
 | `score:update` | `score:update` (identique) |
 | `ball:lost` | `ball:change` (avec `{ livesRemaining }`) |
-| `game:over` | `mode:change` (transition vers `gameOver`) + payload pour scoreboard |
+| `game:over` | scoreboard final (afficher le `finalScore`) |
+| `match:state` | transition de la state machine front (`playing` → `paused`, etc.) |
+| `countdown:tick` | overlay countdown 3-2-1-GO sur les 3 écrans |
 
-**Events client → serveur**
+**Events client → serveur (nouveau — protocole MATCH_SYNC)**
 
-Aucun event entrant n'est traité par le backend pour l'instant. Le client peut envoyer du texte mais c'est ignoré (la boucle `receive_text` sert juste à détecter la déconnexion).
+Le client peut envoyer 3 commandes via `ws.send(JSON.stringify({...}))` :
+
+```ts
+type WsClientCmd =
+  | { type: "cmd:pause" }
+  | { type: "cmd:resume" }
+  | { type: "cmd:abandon" };
+```
+
+| Commande | Validité | Effet |
+|---|---|---|
+| `cmd:pause` | uniquement quand `status == PLAYING` | bascule à `PAUSED`, broadcast `match:state: paused` |
+| `cmd:resume` | uniquement quand `status == PAUSED` | bascule à `PLAYING`, broadcast `match:state: playing` |
+| `cmd:abandon` | quand `status == PLAYING` ou `PAUSED` | bascule à `OVER`, broadcast `match:state: over` |
+
+**Aucune réponse directe** : le feedback arrive via le `match:state` broadcasté à tous les clients de la session juste après.
+
+Si la commande est invalide pour l'état courant (ex: `cmd:pause` quand `status == WAITING`), elle est **silencieusement ignorée** côté serveur (log warning, pas de message d'erreur renvoyé).
 
 **Politique de reconnexion attendue côté client**
 
@@ -693,7 +746,7 @@ export type GameMode = "solo" | "1v1";
 
 export type GameStatus = "playing" | "finished";
 
-export type SessionStatus = "waiting" | "ready" | "playing" | "over";
+export type SessionStatus = "waiting" | "ready" | "playing" | "paused" | "over";
 
 export type RoomStatus = "waiting" | "playing" | "finished";
 
@@ -958,7 +1011,30 @@ export interface WsGameOver {
   finalScore: number;
 }
 
-export type WsEvent = WsScoreUpdate | WsBallLost | WsGameOver;
+// MATCH_SYNC — événements lifecycle de session
+export interface WsMatchState {
+  type: "match:state";
+  status: "ready" | "playing" | "paused" | "over";
+  sessionId: string;
+}
+
+export interface WsCountdownTick {
+  type: "countdown:tick";
+  value: 3 | 2 | 1 | 0;
+}
+
+export type WsEvent =
+  | WsScoreUpdate
+  | WsBallLost
+  | WsGameOver
+  | WsMatchState
+  | WsCountdownTick;
+
+// MATCH_SYNC — commandes client → serveur (ws.send)
+export type WsClientCmd =
+  | { type: "cmd:pause" }
+  | { type: "cmd:resume" }
+  | { type: "cmd:abandon" };
 ```
 
 ---
@@ -1036,10 +1112,12 @@ Format différent (array `detail`) — déclenché par FastAPI **avant** le code
 | `GET /games/{id}` | ✅ | Legacy |
 | `GET /games/rooms/{code}/state` | ✅ | Legacy |
 | `GET /games/list` | ✅ | Legacy |
-| `WS /ws?session_id=` | ✅ | Events `score:update`, `ball:lost`, `game:over` |
+| `WS /ws?session_id=` | ✅ | Events `score:update`, `ball:lost`, `game:over`, `match:state`, `countdown:tick` + reçoit `cmd:pause/resume/abandon` |
 | `WS /ws?room_code=` | 🟡 | Endpoint fonctionnel, mais le nouveau flow ne broadcaste pas sur ce canal |
+| MATCH_SYNC — `cmd:pause/resume/abandon` | ✅ | Routés vers Pause/Resume/AbandonSessionUseCase, broadcast `match:state` à tous les clients du hub |
+| MATCH_SYNC — `match:state` à chaque transition | ✅ | Émis sur `READY`, `PLAYING` post-countdown, `PAUSED`, `OVER` (cmd:abandon ET MQTT game/over) |
+| MATCH_SYNC — `countdown:tick` 3-2-1-0 | ✅ | Asyncio task lancée après `POST /sessions/{id}/ready`, durant `READY` les events MQTT score/ball sont droppés |
 | Matchmaking 1v1 auto | ❌ | Issue #59 — pas de file d'attente, pas de `game:start` synchronisé |
-| Pause/Resume endpoint | ❌ | Pas dans le scope actuel — pause UI-only |
 | Header `X-Request-ID` | ✅ | Ajouté par le middleware logging à chaque réponse |
 | Structured JSON logging | ✅ | Tous les logs serveur sont en JSON |
 
