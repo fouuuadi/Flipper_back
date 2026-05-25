@@ -133,7 +133,7 @@ async def test_ball_lost_floors_at_zero():
 
 
 @pytest.mark.asyncio
-async def test_game_over_sets_status_and_broadcasts_final_score():
+async def test_game_over_sets_status_and_broadcasts_final_score_and_match_state():
     session = _session(score=4200)
     store = _InMemorySessionStore(session)
     broadcaster = _RecordingBroadcaster()
@@ -144,9 +144,51 @@ async def test_game_over_sets_status_and_broadcasts_final_score():
 
     persisted = await store.get("abc")
     assert persisted.status == SessionStatus.OVER
+    # Two messages: score-final notification + lifecycle transition.
     assert broadcaster.calls == [
-        ("abc", {"type": "game:over", "finalScore": 4200})
+        ("abc", {"type": "game:over", "finalScore": 4200}),
+        ("abc", {"type": "match:state", "status": "over", "sessionId": "abc"}),
     ]
+
+
+@pytest.mark.asyncio
+async def test_score_event_dropped_when_session_not_playing():
+    session = _session(score=100)
+    session.status = SessionStatus.PAUSED
+    store = _InMemorySessionStore(session)
+    broadcaster = _RecordingBroadcaster()
+    buffer = _InMemoryEventBuffer()
+
+    await HandleMqttEventUseCase(store, broadcaster, buffer).execute(
+        MqttEvent(
+            topic="flipper/bumper/hit",
+            payload={"sessionId": "abc", "points": 50, "bumperId": 1},
+        )
+    )
+
+    persisted = await store.get("abc")
+    assert persisted.score == 100  # unchanged
+    assert broadcaster.calls == []
+    assert await buffer.read_all("abc") == []
+
+
+@pytest.mark.asyncio
+async def test_score_event_dropped_when_session_in_ready_countdown():
+    session = _session(score=0)
+    session.status = SessionStatus.READY
+    store = _InMemorySessionStore(session)
+    broadcaster = _RecordingBroadcaster()
+
+    await HandleMqttEventUseCase(store, broadcaster, _InMemoryEventBuffer()).execute(
+        MqttEvent(
+            topic="flipper/bumper/hit",
+            payload={"sessionId": "abc", "points": 50},
+        )
+    )
+
+    persisted = await store.get("abc")
+    assert persisted.score == 0
+    assert broadcaster.calls == []
 
 
 @pytest.mark.asyncio

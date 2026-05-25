@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, status
 
 from app import di
+from app.domain.ports.session_event_broadcaster import SessionEventBroadcaster
 from app.domain.ports.session_store import SessionStore
 from app.transport.http.schemas.sessions import (
     CreateSessionRequest,
@@ -9,6 +10,7 @@ from app.transport.http.schemas.sessions import (
 )
 from app.usecase.create_session_usecase import CreateSessionUseCase
 from app.usecase.ready_up_usecase import ReadyUpUseCase
+from app.usecase.start_countdown_usecase import StartCountdownUseCase
 
 router = APIRouter(prefix="/sessions", tags=["sessions"])
 
@@ -45,8 +47,14 @@ async def create_session(
 async def ready_up(
     session_id: str,
     session_store: SessionStore = Depends(di.get_session_store),
+    broadcaster: SessionEventBroadcaster = Depends(di.get_session_hub_manager),
 ):
-    usecase = ReadyUpUseCase(session_store)
+    countdown = StartCountdownUseCase(session_store, broadcaster)
+    usecase = ReadyUpUseCase(
+        session_store=session_store,
+        broadcaster=broadcaster,
+        on_ready=countdown.execute,
+    )
     session = await usecase.execute(session_id)
     return ReadyUpResponse(
         session_id=session.session_id,
