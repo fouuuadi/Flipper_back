@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, status
 
 from app.domain.ports.game_event_repository import GameEventRepository
 from app.domain.ports.game_repository import GameRepository
-from app.domain.ports.player_repository import PlayerRepository
 from app.domain.ports.room_repository import RoomRepository
 from app import di
 from app.transport.http.schemas.add_event import AddEventRequest, AddEventResponse
@@ -22,15 +21,9 @@ router = APIRouter(prefix="/games", tags=["games"])
 
 
 @router.post("/start", status_code=status.HTTP_201_CREATED, response_model=StartGameResponse)
-async def start_game(
-    request: StartGameRequest,
-    player_repo: PlayerRepository = Depends(di.get_player_repo),
-    room_repo: RoomRepository = Depends(di.get_room_repo),
-    game_repo: GameRepository = Depends(di.get_game_repo),
-    event_repo: GameEventRepository = Depends(di.get_event_repo),
-):
+async def start_game(request: StartGameRequest):
     """Démarre une nouvelle partie."""
-    usecase = StartGameUseCase(player_repo, room_repo, game_repo, event_repo)
+    usecase = StartGameUseCase(di.get_uow)
 
     result = await usecase.execute(
         pseudo=request.pseudo,

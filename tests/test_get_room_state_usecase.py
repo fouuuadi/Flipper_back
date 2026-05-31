@@ -33,13 +33,12 @@ async def usecase(repositories):
 
 
 @pytest.mark.asyncio
-async def test_get_room_state_with_games_and_events(usecase, repositories, clean_tables):
-    start_usecase = StartGameUseCase(
-        player_repo=repositories["player"],
-        room_repo=repositories["room"],
-        game_repo=repositories["game"],
-        event_repo=repositories["event"],
-    )
+async def test_get_room_state_with_games_and_events(
+    usecase, repositories, db_pool, clean_tables
+):
+    from app.infrastructure.db.unit_of_work import PgUnitOfWork
+
+    start_usecase = StartGameUseCase(lambda: PgUnitOfWork(db_pool))
 
     result1 = await start_usecase.execute(pseudo="alice", mode=GameMode.ONE_V_ONE)
     room_code = result1["room"].code

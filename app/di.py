@@ -13,10 +13,12 @@ from app.domain.ports.mqtt_gateway import MqttGateway
 from app.domain.ports.player_repository import PlayerRepository
 from app.domain.ports.room_repository import RoomRepository
 from app.domain.ports.session_store import SessionStore
+from app.domain.ports.unit_of_work import UnitOfWork
 from app.infrastructure.db.game_event_repository import PgGameEventRepository
 from app.infrastructure.db.game_repository import PgGameRepository
 from app.infrastructure.db.player_repository import PgPlayerRepository
 from app.infrastructure.db.room_repository import PgRoomRepository
+from app.infrastructure.db.unit_of_work import PgUnitOfWork
 from app.infrastructure.redis.event_buffer import RedisEventBuffer
 from app.infrastructure.redis.session_store import RedisSessionStore
 from app.infrastructure.ws.room_hub import hub_manager
@@ -64,6 +66,18 @@ def get_event_repo() -> GameEventRepository:
     if _db_pool is None:
         raise RuntimeError("Database pool not initialized")
     return PgGameEventRepository(_db_pool)
+
+
+def get_uow() -> UnitOfWork:
+    """Return a fresh Unit of Work bound to the shared pool.
+
+    A new instance per call because `__aenter__` acquires its own
+    connection and starts its own transaction — the UoW is meant to be
+    short-lived and used as `async with uow: ...`.
+    """
+    if _db_pool is None:
+        raise RuntimeError("Database pool not initialized")
+    return PgUnitOfWork(_db_pool)
 
 
 def get_session_store() -> SessionStore:

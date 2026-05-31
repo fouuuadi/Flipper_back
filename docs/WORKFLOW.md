@@ -166,17 +166,20 @@ Cas spéciaux :
 | **Domain Ports** | `SessionStore` | CRUD session Redis (Hash) |
 | | `EventBuffer` | Push/read events MQTT (Redis List) |
 | | `GameRepository`, `PlayerRepository`, `GameEventRepository`, `RoomRepository` | CRUD DB |
+| | `UnitOfWork` (#68) | Atomic boundary autour des 4 repos SQL — `async with uow: ...` ouvre une transaction partagée, commit en sortie propre, rollback sur exception |
 | | `MqttGateway` | Subscribe broker + dispatch event |
 | | `SessionEventBroadcaster` | Broadcast WS scoped session |
 | **Infrastructure Redis** | `RedisSessionStore` | Hash + sliding TTL 30min |
 | | `RedisEventBuffer` | List + sliding TTL 30min |
-| **Infrastructure DB** | `PgPlayerRepository`, `PgGameRepository`, `PgGameEventRepository`, `PgRoomRepository` | asyncpg + SQL brut (PostgreSQL 16) |
+| **Infrastructure DB** | `PgPlayerRepository`, `PgGameRepository`, `PgGameEventRepository`, `PgRoomRepository` | asyncpg + SQL brut (PostgreSQL 16). Acceptent un `Pool` (standalone) ou une `Connection` (sous UoW) |
+| | `PgUnitOfWork` (#68) | Acquiert une connexion dans le pool, ouvre une transaction, branche les 4 repos dessus, commit/rollback à la sortie |
 | **Infrastructure MQTT** | `AioMqttGateway` | aiomqtt async client + consumer task |
 | **Infrastructure WS** | `SessionHubManager` | 1 `SessionHub` par session_id |
 | | `HubManager` (legacy room) | 1 `RoomHub` par room_code |
 | **Use cases** | `CreateSessionUseCase`, `ReadyUpUseCase` | Avant la partie |
 | | `HandleMqttEventUseCase` | Pendant la partie |
 | | `FinishAndPersistUseCase` | Fin de partie |
+| | `StartGameUseCase` | Flow legacy `/games/start` — utilise le `UnitOfWork` (#68) pour insérer Player + Room + Game + Event dans une seule transaction SQL |
 | | `CreateOrGetPlayerUseCase`, `GetPlayerUseCase` | Hors flow — gestion du profil joueur |
 | | `GetLeaderboardUseCase` | Hors flow — top scores |
 | | `GetPlayerHistoryUseCase` | Hors flow — historique d'un joueur |

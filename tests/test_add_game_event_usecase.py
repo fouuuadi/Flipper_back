@@ -8,6 +8,7 @@ from app.infrastructure.db.game_event_repository import PgGameEventRepository
 from app.infrastructure.db.game_repository import PgGameRepository
 from app.infrastructure.db.player_repository import PgPlayerRepository
 from app.infrastructure.db.room_repository import PgRoomRepository
+from app.infrastructure.db.unit_of_work import PgUnitOfWork
 from app.usecase.add_game_event_usecase import AddGameEventUseCase
 from app.usecase.start_game_usecase import StartGameUseCase
 
@@ -30,19 +31,14 @@ async def usecase(repositories):
     )
 
 
-async def _start_game(repositories, pseudo: str):
-    start_usecase = StartGameUseCase(
-        player_repo=repositories["player"],
-        room_repo=repositories["room"],
-        game_repo=repositories["game"],
-        event_repo=repositories["event"],
-    )
+async def _start_game(db_pool, pseudo: str):
+    start_usecase = StartGameUseCase(lambda: PgUnitOfWork(db_pool))
     return await start_usecase.execute(pseudo=pseudo, mode=GameMode.SOLO)
 
 
 @pytest.mark.asyncio
-async def test_add_event_increases_score(usecase, repositories, clean_tables):
-    start_result = await _start_game(repositories, "alice")
+async def test_add_event_increases_score(usecase, db_pool, clean_tables):
+    start_result = await _start_game(db_pool, "alice")
     game_id = start_result["game"].id
     initial_score = start_result["game"].score
 
@@ -58,8 +54,8 @@ async def test_add_event_increases_score(usecase, repositories, clean_tables):
 
 
 @pytest.mark.asyncio
-async def test_add_event_without_points(usecase, repositories, clean_tables):
-    start_result = await _start_game(repositories, "bob")
+async def test_add_event_without_points(usecase, db_pool, clean_tables):
+    start_result = await _start_game(db_pool, "bob")
     game_id = start_result["game"].id
     initial_score = start_result["game"].score
 
@@ -84,8 +80,8 @@ async def test_add_event_nonexistent_game(usecase, clean_tables):
 
 
 @pytest.mark.asyncio
-async def test_add_event_finished_game(usecase, repositories, db_pool, clean_tables):
-    start_result = await _start_game(repositories, "charlie")
+async def test_add_event_finished_game(usecase, db_pool, clean_tables):
+    start_result = await _start_game(db_pool, "charlie")
     game_id = start_result["game"].id
 
     async with db_pool.acquire() as conn:
@@ -104,8 +100,8 @@ async def test_add_event_finished_game(usecase, repositories, db_pool, clean_tab
 
 
 @pytest.mark.asyncio
-async def test_multiple_events_accumulate_score(usecase, repositories, clean_tables):
-    start_result = await _start_game(repositories, "dave")
+async def test_multiple_events_accumulate_score(usecase, db_pool, clean_tables):
+    start_result = await _start_game(db_pool, "dave")
     game_id = start_result["game"].id
     score = 0
 
