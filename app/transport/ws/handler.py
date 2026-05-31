@@ -11,6 +11,7 @@ from app.infrastructure.ws.session_hub import session_hub_manager
 from app.usecase.abandon_session_usecase import AbandonSessionUseCase
 from app.usecase.pause_session_usecase import PauseSessionUseCase
 from app.usecase.resume_session_usecase import ResumeSessionUseCase
+from app.usecase.start_countdown_usecase import StartCountdownUseCase
 
 logger = logging.getLogger(__name__)
 
@@ -109,7 +110,10 @@ async def _handle_session_command(
     if cmd_type == _CMD_PAUSE:
         await PauseSessionUseCase(session_store, broadcaster).execute(session_id)
     elif cmd_type == _CMD_RESUME:
-        await ResumeSessionUseCase(session_store, broadcaster).execute(session_id)
+        countdown = StartCountdownUseCase(session_store, broadcaster)
+        await ResumeSessionUseCase(
+            session_store, broadcaster, start_countdown=countdown.execute
+        ).execute(session_id)
     elif cmd_type == _CMD_ABANDON:
         await AbandonSessionUseCase(session_store, broadcaster).execute(session_id)
     else:

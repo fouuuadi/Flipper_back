@@ -22,6 +22,20 @@ Les 3 apps front sont **3 process JS isolés** (3 services Docker, ports distinc
                             [playfield] [backglass]   [dmd]
 ```
 
+Pour la **reprise**, le flux est identique mais avec un countdown intercalé entre `PAUSED` et `PLAYING` :
+
+```
+[playfield] --cmd:resume--> [back]
+                            [back] PAUSED → READY
+                            [back] broadcast match:state ready
+                            [back] StartCountdownUseCase (background task)
+                              tick 3 → tick 2 → tick 1 → tick 0 (1s entre chaque)
+                            [back] READY → PLAYING
+                            [back] broadcast match:state playing
+                                ↓             ↓             ↓
+                            [playfield] [backglass]   [dmd]
+```
+
 **Hors-partie** (splash, menu, identification, leaderboard côté front), aucune sync n'est nécessaire — chaque app navigue de son côté. Voir la doc front pour la frontière exacte.
 
 ---
@@ -57,11 +71,14 @@ Transitions autorisées (à valider au cas par cas dans les use cases) :
 | Depuis | Via | Vers |
 |---|---|---|
 | `WAITING` | `POST /sessions/{id}/ready` | `READY` |
-| `READY` | démarrage countdown (cf. §3) | `PLAYING` |
+| `READY` | démarrage countdown (cf. §4) | `PLAYING` |
 | `PLAYING` | `cmd:pause` (WS) ou MQTT `flipper/pause` | `PAUSED` |
-| `PAUSED` | `cmd:resume` (WS) ou MQTT `flipper/resume` | `PLAYING` |
+| `PAUSED` | `cmd:resume` (WS) — étape 1/2 | `READY` |
+| `READY` (après `cmd:resume`) | fin de countdown | `PLAYING` |
 | `PLAYING` ou `PAUSED` | `cmd:abandon` (WS) | `OVER` |
 | `PLAYING` | MQTT `flipper/game/over` | `OVER` |
+
+> ℹ️ Depuis l'issue #111, `cmd:resume` ne passe **plus** directement de `PAUSED` à `PLAYING`. Le use case intercale un retour à `READY` + countdown 3-2-1-GO (identique au démarrage initial), pour une UX de reprise non-brutale côté front. Voir §4 pour le mécanisme partagé.
 
 Une transition non autorisée doit être ignorée silencieusement (log warning, pas d'erreur HTTP).
 
@@ -100,9 +117,14 @@ Comportement attendu :
 - Si la transition est autorisée pour le `SessionStatus` courant, appliquer + broadcast `match:state`
 - Sinon, log warning et ne rien faire
 
-### 4. Countdown pré-partie
+### 4. Countdown 3-2-1-GO (initial **et** reprise)
 
-Quand la session passe à `READY` (déclenché par `POST /sessions/{id}/ready`), démarrer un asyncio task qui :
+Le même `StartCountdownUseCase` est partagé entre deux déclencheurs :
+
+- **Initial** : `POST /sessions/{id}/ready` (le joueur valide son pseudo et part en partie)
+- **Reprise** : `cmd:resume` reçu sur le WS (le joueur clique "reprendre" pendant une pause)
+
+Dans les deux cas, la session est posée à `READY`, le countdown asyncio démarre en fire-and-forget, et :
 
 1. Broadcast `countdown:tick` avec `value: 3`
 2. Attend 1 seconde
@@ -113,7 +135,9 @@ Quand la session passe à `READY` (déclenché par `POST /sessions/{id}/ready`),
 7. Broadcast `value: 0`
 8. Bascule `Session.status` à `PLAYING` + broadcast `match:state: playing`
 
-**Pendant le countdown**, les events MQTT score/ball pour cette session doivent être **ignorés** (la partie n'a pas encore réellement démarré). Plus simple : `HandleMqttEventUseCase` vérifie `session.status == PLAYING` avant d'appliquer score/lives.
+**Pendant le countdown** (que ce soit l'initial ou la reprise), les events MQTT score/ball pour cette session sont **ignorés** — la partie n'est pas encore active. Le gating est centralisé dans `HandleMqttEventUseCase` qui vérifie `session.status == PLAYING` avant d'appliquer score/lives. Aucun cas particulier à gérer pour la reprise : le passage à `READY` suffit à activer le drop côté MQTT.
+
+> Côté front, le binding `countdown:tick` est déjà câblé sur les 3 apps (validé bout en bout dans front PR #101). La reprise réutilise le même handler — aucune modification front nécessaire.
 
 ### 5. Émettre `match:state` aux transitions existantes
 
@@ -171,7 +195,13 @@ Pour les erreurs **structurelles** (session inexistante, payload mal formé), le
 - ✅ `HandleMqttEventUseCase` broadcast `match:state: over` en plus de `game:over` sur `flipper/game/over`
 - ✅ Tests : présence du message dans le hub à chaque transition
 
-### back#D (optionnel, plus tard)
+### back#D — Countdown 3-2-1-GO sur `cmd:resume` ✅ (issue #111)
+- ✅ `ResumeSessionUseCase` orchestre `PAUSED → READY` + lance le countdown partagé
+- ✅ `StartCountdownUseCase` réutilisé tel quel (même sleep injectable, même garde `status == READY` avant la bascule finale)
+- ✅ `HandleMqttEventUseCase` continue de gater sur `status == PLAYING` (aucun cas particulier à ajouter pour la reprise)
+- ✅ Tests : séquence complète `match:state: ready → 4 ticks → match:state: playing`, drop MQTT pendant la phase `READY` du resume, no-op silencieux sur `WAITING` / `PLAYING` / `OVER`
+
+### back#E (optionnel, plus tard)
 - Topics MQTT `flipper/pause` et `flipper/resume` pour piloter les transitions depuis le hardware (gros bouton physique pause sur la borne)
 
 ---
