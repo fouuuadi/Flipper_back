@@ -8,6 +8,7 @@ from app.infrastructure.db.game_event_repository import PgGameEventRepository
 from app.infrastructure.db.game_repository import PgGameRepository
 from app.infrastructure.db.player_repository import PgPlayerRepository
 from app.infrastructure.db.room_repository import PgRoomRepository
+from app.infrastructure.db.unit_of_work import PgUnitOfWork
 from app.usecase.finish_game_usecase import FinishGameUseCase
 from app.usecase.start_game_usecase import StartGameUseCase
 
@@ -30,19 +31,14 @@ async def usecase(repositories):
     )
 
 
-async def _start_game(repositories, pseudo: str):
-    start_usecase = StartGameUseCase(
-        player_repo=repositories["player"],
-        room_repo=repositories["room"],
-        game_repo=repositories["game"],
-        event_repo=repositories["event"],
-    )
+async def _start_game(db_pool, pseudo: str):
+    start_usecase = StartGameUseCase(lambda: PgUnitOfWork(db_pool))
     return await start_usecase.execute(pseudo=pseudo, mode=GameMode.SOLO)
 
 
 @pytest.mark.asyncio
-async def test_finish_game_playing(usecase, repositories, clean_tables):
-    start_result = await _start_game(repositories, "alice")
+async def test_finish_game_playing(usecase, db_pool, clean_tables):
+    start_result = await _start_game(db_pool, "alice")
     game_id = start_result["game"].id
 
     result = await usecase.execute(game_id=game_id)
@@ -60,8 +56,8 @@ async def test_finish_game_nonexistent(usecase, clean_tables):
 
 
 @pytest.mark.asyncio
-async def test_finish_game_already_finished(usecase, repositories, clean_tables):
-    start_result = await _start_game(repositories, "bob")
+async def test_finish_game_already_finished(usecase, db_pool, clean_tables):
+    start_result = await _start_game(db_pool, "bob")
     game_id = start_result["game"].id
 
     await usecase.execute(game_id=game_id)

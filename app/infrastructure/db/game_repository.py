@@ -7,6 +7,7 @@ from app.domain.game import Game, GameMode, GameStatus
 from app.domain.game_event import GameEventType
 from app.domain.leaderboard_entry import LeaderboardEntry
 from app.domain.ports.game_repository import GameRepository
+from app.infrastructure.db._executor import Executor, acquire
 from app.infrastructure.db.mappers.game_mapper import row_to_game
 
 _TOPIC_TO_EVENT_TYPE: dict[str, GameEventType] = {
@@ -23,15 +24,19 @@ _GAME_SELECT_COLS = (
 
 
 class PgGameRepository(GameRepository):
-    """asyncpg-backed repository for games."""
+    """asyncpg-backed repository for games.
 
-    def __init__(self, pool: asyncpg.Pool):
-        self.pool = pool
+    Accepts either an `asyncpg.Pool` or a single `asyncpg.Connection`
+    (when running inside a `UnitOfWork`).
+    """
+
+    def __init__(self, executor: Executor):
+        self._executor = executor
 
     async def create(
         self, player_id: int, room_id: int | None, mode: GameMode
     ) -> Game:
-        async with self.pool.acquire() as conn:
+        async with acquire(self._executor) as conn:
             row = await conn.fetchrow(
                 f"INSERT INTO games (player_id, room_id, mode, score, status) "
                 f"VALUES ($1, $2, $3, $4, $5) RETURNING {_GAME_SELECT_COLS}",
@@ -44,7 +49,7 @@ class PgGameRepository(GameRepository):
         return row_to_game(dict(row))
 
     async def get_by_id(self, id: int) -> Game | None:
-        async with self.pool.acquire() as conn:
+        async with acquire(self._executor) as conn:
             row = await conn.fetchrow(
                 f"SELECT {_GAME_SELECT_COLS} FROM games WHERE id = $1",
                 id,
@@ -52,7 +57,7 @@ class PgGameRepository(GameRepository):
         return row_to_game(dict(row) if row is not None else None)
 
     async def add_points(self, game_id: int, points: int) -> Game:
-        async with self.pool.acquire() as conn:
+        async with acquire(self._executor) as conn:
             row = await conn.fetchrow(
                 f"UPDATE games SET score = score + $1 WHERE id = $2 "
                 f"RETURNING {_GAME_SELECT_COLS}",
@@ -62,7 +67,7 @@ class PgGameRepository(GameRepository):
         return row_to_game(dict(row))
 
     async def get_active_by_room(self, room_id: int) -> list[Game]:
-        async with self.pool.acquire() as conn:
+        async with acquire(self._executor) as conn:
             rows = await conn.fetch(
                 f"SELECT {_GAME_SELECT_COLS} FROM games "
                 f"WHERE room_id = $1 AND status = $2",
@@ -72,7 +77,7 @@ class PgGameRepository(GameRepository):
         return [row_to_game(dict(r)) for r in rows]
 
     async def finish(self, game_id: int) -> Game:
-        async with self.pool.acquire() as conn:
+        async with acquire(self._executor) as conn:
             row = await conn.fetchrow(
                 f"UPDATE games SET status = $1, finished_at = NOW() WHERE id = $2 "
                 f"RETURNING {_GAME_SELECT_COLS}",
@@ -102,7 +107,7 @@ class PgGameRepository(GameRepository):
             f"LIMIT ${len(params)}"
         )
 
-        async with self.pool.acquire() as conn:
+        async with acquire(self._executor) as conn:
             rows = await conn.fetch(sql, *params)
         return [
             LeaderboardEntry(
@@ -115,7 +120,7 @@ class PgGameRepository(GameRepository):
         ]
 
     async def get_by_status(self, status: GameStatus) -> list[Game]:
-        async with self.pool.acquire() as conn:
+        async with acquire(self._executor) as conn:
             rows = await conn.fetch(
                 f"SELECT {_GAME_SELECT_COLS} FROM games "
                 f"WHERE status = $1 ORDER BY started_at DESC",
@@ -140,12 +145,12 @@ class PgGameRepository(GameRepository):
         params.append(int(limit))
         sql += f" ORDER BY finished_at DESC, id DESC LIMIT ${len(params)}"
 
-        async with self.pool.acquire() as conn:
+        async with acquire(self._executor) as conn:
             rows = await conn.fetch(sql, *params)
         return [row_to_game(dict(r)) for r in rows]
 
     async def get_best_solo_score(self, player_id: int) -> int | None:
-        async with self.pool.acquire() as conn:
+        async with acquire(self._executor) as conn:
             row = await conn.fetchrow(
                 "SELECT MAX(score) AS best FROM games "
                 "WHERE player_id = $1 AND mode = $2 AND status = $3",
@@ -167,7 +172,7 @@ class PgGameRepository(GameRepository):
         events: list[dict[str, Any]],
     ) -> tuple[int, int, int]:
         event_rows = self._build_event_rows(events)
-        async with self.pool.acquire() as conn:
+        async with acquire(self._executor) as conn:
             async with conn.transaction():
                 player_id = await self._upsert_player(conn, pseudo)
                 game_id = await self._insert_finished_game(

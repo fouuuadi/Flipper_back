@@ -306,7 +306,7 @@ APP_PORT=8000
 
 ### Étape 7 — Issues existantes (après migration)
 - [x] #71 Structured logging JSON (PR #101)
-- [ ] #68 Unit of Work (transactions atomiques — partiellement résolu inline)
+- [x] #68 Unit of Work (port `UnitOfWork` + `PgUnitOfWork` + refactor `StartGameUseCase`)
 - [ ] #69 EventBus interne
 - [ ] #70 WebSocket broadcast par room
 
@@ -337,3 +337,4 @@ APP_PORT=8000
 - [x] Format pseudo unifié + DEFAULT_HASHTAG=HETIC + best-score-wins solo
 - [x] Structured JSON logging + HTTP middleware
 - [x] Migration PostgreSQL (asyncpg + SQL brut)
+- [x] Unit of Work (#68) — `UnitOfWork` port + `PgUnitOfWork` + repos `Pool|Connection` + `StartGameUseCase` refactor

@@ -4,31 +4,22 @@ import pytest_asyncio
 from app.domain.exceptions import RoomNotFoundError
 from app.domain.game import GameMode
 from app.domain.game_event import GameEventType
-from app.infrastructure.db.game_event_repository import PgGameEventRepository
-from app.infrastructure.db.game_repository import PgGameRepository
 from app.infrastructure.db.player_repository import PgPlayerRepository
 from app.infrastructure.db.room_repository import PgRoomRepository
+from app.infrastructure.db.unit_of_work import PgUnitOfWork
 from app.usecase.start_game_usecase import StartGameUseCase
 
 
 @pytest_asyncio.fixture
-async def repositories(db_pool):
-    return {
-        "player": PgPlayerRepository(db_pool),
-        "room": PgRoomRepository(db_pool),
-        "game": PgGameRepository(db_pool),
-        "event": PgGameEventRepository(db_pool),
-    }
+async def uow_factory(db_pool):
+    def _factory():
+        return PgUnitOfWork(db_pool)
+    return _factory
 
 
 @pytest_asyncio.fixture
-async def usecase(repositories):
-    return StartGameUseCase(
-        player_repo=repositories["player"],
-        room_repo=repositories["room"],
-        game_repo=repositories["game"],
-        event_repo=repositories["event"],
-    )
+async def usecase(uow_factory):
+    return StartGameUseCase(uow_factory)
 
 
 @pytest.mark.asyncio
@@ -56,8 +47,8 @@ async def test_start_solo_new_player(usecase, clean_tables):
 
 
 @pytest.mark.asyncio
-async def test_start_solo_existing_player(usecase, repositories, clean_tables):
-    existing_player = await repositories["player"].create("fouad")
+async def test_start_solo_existing_player(usecase, db_pool, clean_tables):
+    existing_player = await PgPlayerRepository(db_pool).create("fouad")
 
     result = await usecase.execute(pseudo="fouad", mode=GameMode.SOLO)
 
@@ -69,8 +60,8 @@ async def test_start_solo_existing_player(usecase, repositories, clean_tables):
 
 
 @pytest.mark.asyncio
-async def test_start_1v1_with_existing_room(usecase, repositories, clean_tables):
-    existing_room = await repositories["room"].create(GameMode.ONE_V_ONE)
+async def test_start_1v1_with_existing_room(usecase, db_pool, clean_tables):
+    existing_room = await PgRoomRepository(db_pool).create(GameMode.ONE_V_ONE)
 
     result = await usecase.execute(
         pseudo="oscar",
@@ -86,13 +77,23 @@ async def test_start_1v1_with_existing_room(usecase, repositories, clean_tables)
 
 
 @pytest.mark.asyncio
-async def test_start_with_nonexistent_room_code(usecase, clean_tables):
+async def test_start_with_nonexistent_room_code_rolls_back(
+    usecase, db_pool, clean_tables
+):
+    """Bug #68: when the room lookup fails, the player upsert from earlier
+    in the same `execute()` must be rolled back — no orphan player row."""
     with pytest.raises(RoomNotFoundError, match="n'existe pas"):
         await usecase.execute(
             pseudo="dave",
             mode=GameMode.SOLO,
             room_code="INVALID",
         )
+
+    async with db_pool.acquire() as conn:
+        n = await conn.fetchval(
+            "SELECT COUNT(*) FROM players WHERE pseudo = $1", "dave"
+        )
+    assert n == 0
 
 
 @pytest.mark.asyncio
