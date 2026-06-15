@@ -53,9 +53,9 @@
                                   └─────────┬──────────────────┘
                                             ▼
                                   ┌────────────────────────────┐
-                                  │  MySQL (persistance finale)│
-                                  │  players / games /         │
-                                  │  game_events               │
+                                  │ PostgreSQL 16 (persist.    │
+                                  │ finale) players / games /  │
+                                  │ game_events                │
                                   └────────────────────────────┘
 ```
 
@@ -135,9 +135,9 @@ Edge cases :
   - Session depuis Redis (score final, pseudo, mode, started_at)
   - Buffer d'events depuis Redis List `events:{session_id}`
   - 🆕 En mode solo : best score actuel du joueur (`MAX(score)` sur ses games solo finies) avant l'INSERT → `previousBest`
-- **Transaction MySQL atomique** (rollback complet si une étape échoue) :
-  1. `INSERT INTO players (pseudo)` avec upsert (`ON DUPLICATE KEY` → récupère l'`id` existant)
-  2. `INSERT INTO games (player_id, mode, score, started_at, finished_at, status=FINISHED)`
+- **Transaction PostgreSQL atomique** (asyncpg, rollback complet si une étape échoue) :
+  1. Upsert Player idempotent : `SELECT id FROM players WHERE pseudo = $1`, et si absent `INSERT INTO players (pseudo) VALUES ($1) RETURNING id`
+  2. `INSERT INTO games (player_id, room_id, mode, score, status, started_at, finished_at) ... RETURNING id` (`status = FINISHED`)
   3. `INSERT INTO game_events (game_id, type, points, occured_at) VALUES (...)` en batch
 - **Cleanup Redis** : DELETE session + DELETE event buffer (après commit DB OK)
 - **Retourne** : `{ ok, finalScore, playerId, gameId, eventCount, improved, previousBest }`
@@ -204,9 +204,10 @@ Cas spéciaux :
 | 5d. Historique d'un joueur (`GET /players/{id}/games`) | ✅ Mergé | #99 |
 | 5e. Best score wins (solo) — `improved` + `is_best` | ✅ Mergé | #100 |
 | 5f. Structured JSON logging + HTTP middleware | ✅ Mergé | #101 |
-| 6. Migration MySQL → PostgreSQL | 🚧 En cours | feat/postgres-migration |
-| 7. Best score wins (solo) | 📌 À faire | #96 |
-| 8. Historique d'un joueur | 📌 À faire | #58 |
+| 6. Migration MySQL → PostgreSQL (asyncpg, SQL brut) | ✅ Mergé | feat/postgres-migration |
+| 7. Unit of Work (#68) — transaction multi-tables | ✅ Mergé | #115 |
+| 8. EventBus interne (#69) | 📌 À faire | — |
+| 9. WebSocket broadcast par room (#70) | 📌 À faire | — |
 
 ---
 
@@ -258,7 +259,7 @@ Toutes les routes appliquent `normalize_and_validate` sur le pseudo → uppercas
   - mesure la durée en `time.perf_counter()`
   - émet un log JSON `http_request` avec `method`, `path`, `status_code`, `duration_ms`, `request_id`
   - répond avec un header `X-Request-ID` (le client peut corréler ses appels avec les logs serveur)
-- Tous les `logger.info(...)`, `logger.warning(...)` existants (MySQL retries, Redis connect, MQTT subscribe, WS connect/disconnect) **héritent automatiquement** du format JSON via le root logger.
+- Tous les `logger.info(...)`, `logger.warning(...)` existants (PostgreSQL/asyncpg, Redis connect, MQTT subscribe, WS connect/disconnect) **héritent automatiquement** du format JSON via le root logger.
 
 Exemple de log émis :
 ```json
@@ -272,7 +273,7 @@ Exemple de log émis :
 ```bash
 # 1. Démarrer la stack
 docker compose up -d db redis mqtt
-DB_HOST=127.0.0.1 DB_PORT=3306 DB_USER=flipper_user DB_PASSWORD=flipper_password \
+DB_HOST=127.0.0.1 DB_PORT=5432 DB_USER=flipper_user DB_PASSWORD=flipper_password \
   DB_NAME=flipper REDIS_URL=redis://127.0.0.1:6379 \
   MQTT_BROKER_HOST=127.0.0.1 MQTT_BROKER_PORT=1883 \
   python3 -m app.main
@@ -303,6 +304,6 @@ curl -X POST localhost:8080/scores \
 # → { "ok": true, "finalScore": 100, "playerId": 1, "gameId": 1, "eventCount": 3 }
 
 # 6. Vérifier en DB
-docker exec flipper_db mysql -uflipper_user -pflipper_password flipper \
-  -e "SELECT * FROM games ORDER BY id DESC LIMIT 1;"
+docker exec flipper_db psql -U flipper_user -d flipper \
+  -c "SELECT * FROM games ORDER BY id DESC LIMIT 1;"
 ```
