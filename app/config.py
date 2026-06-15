@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     app_port: int = 8080
 
     db_host: str = "localhost"
-    db_port: int = 3306
+    db_port: int = 5432
     db_name: str = "flipper"
     db_user: str = "flipper_user"
     db_password: str = "flipper_password"
