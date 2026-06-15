@@ -16,7 +16,7 @@ def test_defaults_when_no_env_vars(monkeypatch):
 
     assert settings.app_port == 8080
     assert settings.db_host == "localhost"
-    assert settings.db_port == 3306
+    assert settings.db_port == 5432
     assert settings.db_name == "flipper"
     assert settings.db_user == "flipper_user"
     assert settings.db_password == "flipper_password"
