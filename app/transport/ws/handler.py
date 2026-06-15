@@ -6,8 +6,6 @@ from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 from app import di
 from app.domain.ports.session_event_broadcaster import SessionEventBroadcaster
 from app.domain.ports.session_store import SessionStore
-from app.infrastructure.ws.room_hub import hub_manager
-from app.infrastructure.ws.session_hub import session_hub_manager
 from app.usecase.abandon_session_usecase import AbandonSessionUseCase
 from app.usecase.pause_session_usecase import PauseSessionUseCase
 from app.usecase.resume_session_usecase import ResumeSessionUseCase
@@ -27,6 +25,8 @@ async def websocket_subscribe(
     websocket: WebSocket,
     room_repository=Depends(di.get_room_repo),
     session_store: SessionStore = Depends(di.get_session_store),
+    session_hub_manager=Depends(di.get_session_hub_manager),
+    room_hub_manager=Depends(di.get_hub_manager),
 ):
     """Subscribe to game events.
 
@@ -45,18 +45,21 @@ async def websocket_subscribe(
         return
 
     if session_id:
-        await _serve_session(websocket, session_id, session_store)
+        await _serve_session(websocket, session_id, session_store, session_hub_manager)
         return
 
     if room_code:
-        await _serve_room(websocket, room_code, room_repository)
+        await _serve_room(websocket, room_code, room_repository, room_hub_manager)
         return
 
     await websocket.close(code=1000, reason="session_id or room_code required")
 
 
 async def _serve_session(
-    websocket: WebSocket, session_id: str, session_store: SessionStore
+    websocket: WebSocket,
+    session_id: str,
+    session_store: SessionStore,
+    session_hub_manager,
 ) -> None:
     session = await session_store.get(session_id)
     if session is None:
@@ -124,7 +127,9 @@ async def _handle_session_command(
         )
 
 
-async def _serve_room(websocket: WebSocket, room_code: str, room_repository) -> None:
+async def _serve_room(
+    websocket: WebSocket, room_code: str, room_repository, room_hub_manager
+) -> None:
     room = await room_repository.get_by_code(room_code)
     if not room:
         await websocket.close(code=1000, reason="room not found")
@@ -133,7 +138,7 @@ async def _serve_room(websocket: WebSocket, room_code: str, room_repository) -> 
     await websocket.accept()
     logger.info("[ws] connected to room %s", room_code)
 
-    hub = hub_manager.get_or_create_room_hub(room_code)
+    hub = room_hub_manager.get_or_create_room_hub(room_code)
     await hub.add_client(websocket)
 
     try:
