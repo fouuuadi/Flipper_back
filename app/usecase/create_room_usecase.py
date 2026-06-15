@@ -11,10 +11,5 @@ class CreateRoomUseCase:
         self.room_repository = room_repository
 
     async def execute(self, mode: GameMode) -> dict:
-
         room = await self.room_repository.create(mode)
-        
-        if not room:
-            raise ValueError("Failed to create room")
-        
         return {"room": room}

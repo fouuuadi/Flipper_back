@@ -1,6 +1,7 @@
 import pytest
 import pytest_asyncio
 
+from app.domain.exceptions import RoomNotFoundError
 from app.domain.game import GameMode
 from app.infrastructure.db.game_repository import PgGameRepository
 from app.infrastructure.db.player_repository import PgPlayerRepository
@@ -46,7 +47,7 @@ async def test_join_room_valid_code(usecase, create_room_usecase, clean_tables):
 
 @pytest.mark.asyncio
 async def test_join_room_invalid_code(usecase, clean_tables):
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(RoomNotFoundError) as exc_info:
         await usecase.execute("INVALID")
     assert "Room INVALID not found" in str(exc_info.value)
 

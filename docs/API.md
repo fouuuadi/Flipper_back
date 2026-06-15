@@ -139,8 +139,8 @@ Réponse :
 ### Rooms — `/rooms`
 | Endpoint | Description | Succès | Erreurs |
 |---|---|---|---|
-| `POST /rooms` | Crée une room. Body `{ "mode": "solo" \| "1v1" }`. Réponse : `room_code`, `mode`, `status`, `created_at`. | `201` | `400`, `500` |
-| `POST /rooms/{code}/join` | Rejoint une room, renvoie ses games. | `200` | `404`, `500` |
+| `POST /rooms` | Crée une room. Body `{ "mode": "solo" \| "1v1" }`. Réponse : `room_code`, `mode`, `status`, `created_at`. | `201` | `422` (mode invalide) |
+| `POST /rooms/{code}/join` | Rejoint une room, renvoie ses games. | `200` | `404` (`RoomNotFoundError` via handler global) |
 | `GET /rooms/list?status=` | Liste les rooms (filtre `status` optionnel). | `200` | — |
 
 ### Games — `/games`

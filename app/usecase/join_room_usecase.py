@@ -1,3 +1,4 @@
+from app.domain.exceptions import RoomNotFoundError
 from app.domain.ports.game_repository import GameRepository
 from app.domain.ports.room_repository import RoomRepository
 
@@ -20,7 +21,7 @@ class JoinRoomUseCase:
         room = await self.room_repository.get_by_code(room_code)
         
         if not room:
-            raise ValueError(f"Room {room_code} not found")
+            raise RoomNotFoundError(f"Room {room_code} not found")
         
         # Récupérer les games actives 
         games = await self.game_repository.get_active_by_room(room.id)
