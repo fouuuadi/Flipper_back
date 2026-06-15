@@ -230,7 +230,7 @@ Les 4 contracts existants dans `.importlinter` DOIVENT continuer à passer :
 - 1 branche = 1 PR = 1 intention
 - Claude ne commit/push/merge pas — c'est le dev qui fait
 - Commentaires uniquement là où la logique est non-évidente
-- **Doc à jour avec le code** : tout changement qui impacte une doc de `docs/` (endpoint, payload, schéma DB, couche, flow) met à jour la/les doc(s) concernée(s) **dans la même PR** que la feature — jamais « plus tard ». Docs techniques : `ARCHITECTURE.md` (structure/couches), `API.md` (endpoints REST + WS), `DATABASE.md` (schéma PG), `WORKFLOW.md` (flow runtime), `MATCH_SYNC.md`, `FRONTEND_INTEGRATION.md`.
+- **Doc à jour avec le code** : tout changement qui impacte une doc de `docs/` (endpoint, payload, schéma DB, couche, flow) met à jour la/les doc(s) concernée(s) **dans la même PR** que la feature — jamais « plus tard ». Docs techniques : `ARCHITECTURE.md` (structure/couches), `API.md` (endpoints REST + WS), `DATABASE.md` (schéma PG), `WORKFLOW.md` (flow runtime), `MATCH_SYNC.md`, `FRONTEND_INTEGRATION.md`, `PRESENTATION.md` (deck Marp soutenance — penser à resync chiffres/état).
 
 ---
 
