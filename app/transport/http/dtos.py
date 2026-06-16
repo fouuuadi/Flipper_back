@@ -4,7 +4,7 @@ Séparation des responsabilités : DTOs dans ce fichier, routes dans games.py
 """
 
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from app.domain.game import GameMode
 from app.domain.game_event import GameEventType
 
@@ -141,3 +141,23 @@ class JoinRoomResponse(BaseModel):
     mode: str
     status: str
     games: list[RoomGameDTO] = []
+
+
+# Jeu en multijoueur : matchmaking
+
+class MatchmakingResponse(BaseModel):
+    status: str
+    room_code: str | None = None
+    game_ids: list[int] = Field(default_factory=list)
+    matchmaking_id: int | None = None
+
+
+class MatchmakingMatchedResponse(BaseModel):
+    status: str
+    room_code: str
+    game_ids: list[int] = Field(default_factory=list)
+
+
+class MatchmakingWaitingResponse(BaseModel):
+    status: str
+    matchmaking_id: int
