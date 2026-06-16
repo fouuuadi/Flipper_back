@@ -16,8 +16,6 @@ class ListRoomsUseCase:
             room_status = RoomStatus(status.lower())
             rooms = await self.room_repo.get_by_status(room_status)
         else:
-            # Si pas de filtre, on retourne toutes les rooms
-            # (Optionnel : vous pouvez implémenter get_all() ou faire la requête ici)
             rooms = []
             for status_value in RoomStatus:
                 rooms.extend(await self.room_repo.get_by_status(status_value))
@@ -37,7 +35,6 @@ class ListGamesUseCase:
             game_status = GameStatus(status.lower())
             games = await self.game_repo.get_by_status(game_status)
         else:
-            # Si pas de filtre, on retourne toutes les games
             games = []
             for status_value in GameStatus:
                 games.extend(await self.game_repo.get_by_status(status_value))
