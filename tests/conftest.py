@@ -15,7 +15,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-_TRUNCATE_SQL = "TRUNCATE game_events, games, rooms, players RESTART IDENTITY CASCADE"
+_TRUNCATE_SQL = "TRUNCATE game_events, games, rooms, players, matchmaking RESTART IDENTITY CASCADE"
 
 
 def _db_host() -> str:
