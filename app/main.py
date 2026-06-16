@@ -18,6 +18,7 @@ from app.transport.http.games import router as games_router
 from app.transport.http.leaderboard import router as leaderboard_router
 from app.transport.http.players import router as players_router
 from app.transport.http.rooms import router as rooms_router
+from app.transport.http.matchmaking import router as matchmaking_router
 from app.transport.http.scores import router as scores_router
 from app.transport.http.sessions import router as sessions_router
 from app.transport.ws.handler import router as ws_router
@@ -68,6 +69,7 @@ app.include_router(sessions_router)
 app.include_router(scores_router)
 app.include_router(players_router)
 app.include_router(leaderboard_router)
+app.include_router(matchmaking_router)
 
 # Routes WebSocket
 app.include_router(ws_router)
