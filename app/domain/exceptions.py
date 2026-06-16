@@ -32,3 +32,11 @@ class SessionNotFoundError(DomainError):
 
 class InvalidPseudoError(DomainError):
     pass
+
+
+class MatchmakingNotFoundError(DomainError):
+    pass
+
+
+class InvalidMatchmakingModeError(DomainError):
+    pass
