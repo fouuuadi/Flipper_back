@@ -1,5 +1,3 @@
-import asyncpg
-
 from app.domain.matchmaking import Matchmaking, MatchmakingStatus
 from app.domain.player import Player
 from app.domain.exceptions import MatchmakingNotFoundError
