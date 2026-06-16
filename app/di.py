@@ -2,6 +2,8 @@
 injection de dépendances pour les repositories
 """
 
+from typing import TYPE_CHECKING
+
 import asyncpg
 from redis.asyncio import Redis
 
@@ -14,6 +16,9 @@ from app.domain.ports.player_repository import PlayerRepository
 from app.domain.ports.room_repository import RoomRepository
 from app.domain.ports.session_store import SessionStore
 from app.domain.ports.unit_of_work import UnitOfWork
+
+if TYPE_CHECKING:
+    from app.domain.ports.matchmaking_repository import MatchmakingRepository
 from app.infrastructure.db.game_event_repository import PgGameEventRepository
 from app.infrastructure.db.game_repository import PgGameRepository
 from app.infrastructure.db.player_repository import PgPlayerRepository
@@ -68,7 +73,7 @@ def get_event_repo() -> GameEventRepository:
     return PgGameEventRepository(_db_pool)
 
 
-def get_matchmaking_repo():
+def get_matchmaking_repo() -> "MatchmakingRepository":
     from app.infrastructure.db.matchmaking_repository import PgMatchmakingRepository
     if _db_pool is None:
         raise RuntimeError("Database pool not initialized")
