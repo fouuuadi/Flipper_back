@@ -18,7 +18,6 @@ from app.infrastructure.db.game_event_repository import PgGameEventRepository
 from app.infrastructure.db.game_repository import PgGameRepository
 from app.infrastructure.db.player_repository import PgPlayerRepository
 from app.infrastructure.db.room_repository import PgRoomRepository
-from app.infrastructure.db.matchmaking_repository import PgMatchmakingRepository
 from app.infrastructure.db.unit_of_work import PgUnitOfWork
 from app.infrastructure.redis.event_buffer import RedisEventBuffer
 from app.infrastructure.redis.session_store import RedisSessionStore
@@ -69,7 +68,8 @@ def get_event_repo() -> GameEventRepository:
     return PgGameEventRepository(_db_pool)
 
 
-def get_matchmaking_repo() -> "MatchmakingRepository":
+def get_matchmaking_repo():
+    from app.infrastructure.db.matchmaking_repository import PgMatchmakingRepository
     if _db_pool is None:
         raise RuntimeError("Database pool not initialized")
     return PgMatchmakingRepository(_db_pool)
