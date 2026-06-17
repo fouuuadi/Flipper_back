@@ -9,6 +9,7 @@ from app.domain.exceptions import (
     InvalidPseudoError,
     PlayerAlreadyExistsError,
     PlayerNotFoundError,
+    PseudoCollisionInRoomError,
     RoomNotFoundError,
     SessionNotFoundError,
 )
@@ -24,6 +25,7 @@ _CONFLICT_EXCEPTIONS = (
     PlayerAlreadyExistsError,
     GameAlreadyFinishedError,
     GameNotPlayableError,
+    PseudoCollisionInRoomError,
 )
 
 _UNPROCESSABLE_EXCEPTIONS = (InvalidPseudoError,)
