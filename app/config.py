@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     mqtt_broker_port: int
     mqtt_topic_filter: str
 
+    # Identifiant du canal borne permanent : les 3 écrans (playfield/backglass/
+    # dmd) s'y connectent au boot et reçoivent l'état partagé broadcasté.
+    borne_id: str
+
     log_level: str
 
 
