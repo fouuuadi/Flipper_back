@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from typing import Awaitable, Callable
 
 from app.domain.ports.event_buffer import EventBuffer
 from app.domain.ports.mqtt_gateway import MqttEvent
@@ -31,10 +32,16 @@ class HandleMqttEventUseCase:
         session_store: SessionStore,
         broadcaster: SessionEventBroadcaster,
         event_buffer: EventBuffer,
+        on_game_over: Callable[[str], Awaitable[None]] | None = None,
     ):
         self._session_store = session_store
         self._broadcaster = broadcaster
         self._event_buffer = event_buffer
+        # Fired (with session_id) right after a natural game over is broadcast.
+        # The real wiring uses it to auto-persist the run and flip the borne to
+        # `game_over`; injected as a callback to keep this use case unaware of
+        # persistence and bornes.
+        self._on_game_over = on_game_over
 
     async def execute(self, event: MqttEvent) -> None:
         session_id = event.payload.get("sessionId")
@@ -92,6 +99,8 @@ class HandleMqttEventUseCase:
                     "sessionId": session_id,
                 },
             )
+            if self._on_game_over is not None:
+                await self._on_game_over(session_id)
 
     @staticmethod
     def _apply(event: MqttEvent, session: Session) -> dict | None:

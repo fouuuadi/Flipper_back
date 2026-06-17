@@ -152,6 +152,38 @@ async def test_game_over_sets_status_and_broadcasts_final_score_and_match_state(
 
 
 @pytest.mark.asyncio
+async def test_game_over_fires_on_game_over_callback():
+    store = _InMemorySessionStore(_session(score=4200))
+    fired: list[str] = []
+
+    async def on_game_over(session_id: str) -> None:
+        fired.append(session_id)
+
+    await HandleMqttEventUseCase(
+        store, _RecordingBroadcaster(), _InMemoryEventBuffer(), on_game_over=on_game_over
+    ).execute(MqttEvent(topic="flipper/game/over", payload={"sessionId": "abc"}))
+
+    assert fired == ["abc"]
+
+
+@pytest.mark.asyncio
+async def test_non_game_over_does_not_fire_callback():
+    store = _InMemorySessionStore(_session())
+    fired: list[str] = []
+
+    async def on_game_over(session_id: str) -> None:
+        fired.append(session_id)
+
+    await HandleMqttEventUseCase(
+        store, _RecordingBroadcaster(), _InMemoryEventBuffer(), on_game_over=on_game_over
+    ).execute(
+        MqttEvent(topic="flipper/bumper/hit", payload={"sessionId": "abc", "points": 10})
+    )
+
+    assert fired == []
+
+
+@pytest.mark.asyncio
 async def test_score_event_dropped_when_session_not_playing():
     session = _session(score=100)
     session.status = SessionStatus.PAUSED
