@@ -40,3 +40,6 @@ class MatchmakingNotFoundError(DomainError):
 
 class InvalidMatchmakingModeError(DomainError):
     pass
+
+class PseudoCollisionInRoomError(DomainError):
+    pass
