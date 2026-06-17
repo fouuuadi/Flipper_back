@@ -25,6 +25,7 @@ from app.infrastructure.db.player_repository import PgPlayerRepository
 from app.infrastructure.db.room_repository import PgRoomRepository
 from app.infrastructure.db.unit_of_work import PgUnitOfWork
 from app.infrastructure.redis.event_buffer import RedisEventBuffer
+from app.infrastructure.redis.session_service import RedisSessionService
 from app.infrastructure.redis.session_store import RedisSessionStore
 from app.infrastructure.ws.room_hub import hub_manager
 from app.infrastructure.ws.session_hub import session_hub_manager
@@ -97,6 +98,12 @@ def get_session_store() -> SessionStore:
         raise RuntimeError("Redis client not initialized")
     settings = get_settings()
     return RedisSessionStore(_redis_client, settings.redis_session_ttl_seconds)
+
+
+def get_session_service():
+    if _redis_client is None:
+        raise RuntimeError("Redis client not initialized")
+    return RedisSessionService(_redis_client)
 
 
 def get_event_buffer() -> EventBuffer:
