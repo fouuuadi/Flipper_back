@@ -33,7 +33,12 @@ class Settings(BaseSettings):
 
     mqtt_broker_host: str
     mqtt_broker_port: int
+    # Filtre d'abonnement des events de jeu (capteurs : bumpers, ball lost…).
     mqtt_topic_filter: str
+    # Filtre d'abonnement des entrées physiques de la borne (boutons / plunger
+    # publiés par l'ESP32, ex. `pinball/+/input/#`). Séparé du précédent car les
+    # deux familles de topics ont des préfixes distincts.
+    mqtt_borne_input_topic_filter: str
 
     # Identifiant du canal borne permanent : les 3 écrans (playfield/backglass/
     # dmd) s'y connectent au boot et reçoivent l'état partagé broadcasté.

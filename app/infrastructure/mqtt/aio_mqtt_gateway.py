@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+from collections.abc import Sequence
 
 import aiomqtt
 
@@ -25,12 +26,16 @@ class AioMqttGateway(MqttGateway):
         self,
         host: str,
         port: int,
-        topic_filter: str,
+        topic_filter: str | Sequence[str],
         handler: MqttEventHandler,
     ):
         self._host = host
         self._port = port
-        self._topic_filter = topic_filter
+        # Un ou plusieurs filtres : les boutons (`pinball/…`) et les capteurs de
+        # jeu (`flipper/…`) ont des préfixes distincts → un SUBSCRIBE chacun.
+        self._topic_filters: list[str] = (
+            [topic_filter] if isinstance(topic_filter, str) else list(topic_filter)
+        )
         self._handler = handler
         self._task: asyncio.Task | None = None
         self._ready = asyncio.Event()
@@ -68,10 +73,11 @@ class AioMqttGateway(MqttGateway):
     async def _run(self) -> None:
         try:
             async with aiomqtt.Client(hostname=self._host, port=self._port) as client:
-                await client.subscribe(self._topic_filter)
+                for topic_filter in self._topic_filters:
+                    await client.subscribe(topic_filter)
                 logger.info(
-                    "Subscribed to MQTT topic filter %s on %s:%s",
-                    self._topic_filter,
+                    "Subscribed to MQTT topic filters %s on %s:%s",
+                    self._topic_filters,
                     self._host,
                     self._port,
                 )
