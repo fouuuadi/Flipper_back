@@ -159,13 +159,14 @@ async def test_matchmaking_race_condition():
 
 @pytest.mark.asyncio
 async def test_matchmaking_pseudo_collision():
-    """Deux joueurs avec le même pseudo → PseudoCollisionInRoomError."""
+    """
+    Deux joueurs avec le même pseudo (ex: ABC#HETIC x2) → PseudoCollisionInRoomError.
+    """
     mm = FakeMatchmakingRepo()
     players = FakePlayerRepo({1: "AAA#11111", 2: "AAA#11111"})
-    session_svc = FakeSessionService(colliding_pseudos={"AAA#11111"})
-    uc = _make_uc(mm=mm, players=players, session_svc=session_svc)
+    uc = _make_uc(mm=mm, players=players, session_svc=FakeSessionService())
 
-    await uc.execute(player_id=1, mode='1v1')  
+    await uc.execute(player_id=1, mode='1v1')
 
     with pytest.raises(PseudoCollisionInRoomError):
         await uc.execute(player_id=2, mode='1v1')
