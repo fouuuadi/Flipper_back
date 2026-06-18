@@ -5,14 +5,16 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from redis.asyncio import from_url
 
+from types import SimpleNamespace
+
 from app import di
+from app.domain.ports.player_repository import PlayerRepository
 from app.infrastructure.redis.session_store import SESSION_KEY_PREFIX
 from app.main import app
 from tests.conftest import make_db_pool, truncate_all
 
 def _redis_url() -> str:
     url = os.getenv("REDIS_URL", "redis://localhost:6379")
-    # En dehors de Docker, remplacer le hostname 'redis' par 'localhost'
     return url.replace("redis://redis:", "redis://localhost:")
 
 
@@ -24,10 +26,6 @@ class _SessionServiceNoCollision:
     async def check_pseudo_uniqueness_in_room(self, room_code: str, pseudo: str) -> bool:
         return True
 
-
-class _SessionServiceAlwaysCollide:
-    async def check_pseudo_uniqueness_in_room(self, room_code: str, pseudo: str) -> bool:
-        return False
 
 
 
@@ -84,13 +82,23 @@ async def _post_matchmaking(http_client, player_id: int, mode: str = "1v1"):
 
 @pytest.mark.asyncio
 async def test_matchmaking_pseudo_collision(db_pool, clean_tables, http_client):
-    """Deux joueurs avec le même pseudo dans la même room → 409 Conflict."""
-    app.dependency_overrides[di.get_session_service] = lambda: _SessionServiceAlwaysCollide()
+    """
+    Deux joueurs avec le même pseudo
 
-    # Deux joueurs avec pseudos différents — c'est _SessionServiceAlwaysCollide
-    # qui force la collision, peu importe les pseudos réels.
+    """
     p1 = await _insert_player(db_pool, "AAA#11111")
     p2 = await _insert_player(db_pool, "BBB#22222")
+
+    class _SamePseudoPlayerRepo(PlayerRepository):
+        async def get_by_id(self, id: int):
+            return SimpleNamespace(id=id, pseudo="AAA#11111")
+        async def get_by_pseudo(self, pseudo: str):
+            return None
+        async def create(self, pseudo: str):
+            return None
+
+    app.dependency_overrides[di.get_player_repo] = lambda: _SamePseudoPlayerRepo()
+    app.dependency_overrides[di.get_session_service] = lambda: _SessionServiceNoCollision()
 
     r1 = await _post_matchmaking(http_client, p1)
     assert r1.status_code == 201
@@ -123,14 +131,9 @@ async def test_matchmaking_pseudo_ok_different_pseudos(db_pool, clean_tables, ht
 
 @pytest.mark.asyncio
 async def test_matchmaking_pseudo_ok_different_rooms(db_pool, clean_tables, redis_client, http_client):
-    """Un pseudo déjà présent dans OLD_ROOM ne bloque pas un match dans une nouvelle room.
-
-    On pré-insère une session Redis avec pseudo "AAA#11111" dans "OLD_ROOM".
-    Le joueur p1 (pseudo "AAA#11111") fait un match contre p2 (pseudo "BBB#22222").
-    Une nouvelle room est créée (≠ OLD_ROOM) → RedisSessionService ne détecte pas
-    de collision car "AAA#11111" n'est pas actif dans la nouvelle room.
     """
-    # Session active dans une room existante (OLD_ROOM) — ne doit pas bloquer
+    Un pseudo déjà présent dans OLD_ROOM ne bloque pas un match dans une nouvelle room.
+    """
     await redis_client.hset(
         f"{SESSION_KEY_PREFIX}existing-session",
         mapping={
@@ -146,7 +149,7 @@ async def test_matchmaking_pseudo_ok_different_rooms(db_pool, clean_tables, redi
         },
     )
 
-    # Deux joueurs avec pseudos différents (contrainte unique DB)
+    # Deux joueurs avec pseudos différents
     p1 = await _insert_player(db_pool, "AAA#11111")
     p2 = await _insert_player(db_pool, "BBB#22222")
 
