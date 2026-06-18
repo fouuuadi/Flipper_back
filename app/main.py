@@ -12,6 +12,7 @@ from app.logging_config import configure_logging
 from app.usecase.apply_borne_intent_usecase import ApplyBorneIntentUseCase
 from app.usecase.finish_and_persist_usecase import FinishAndPersistUseCase
 from app.usecase.finish_borne_game_usecase import FinishBorneGameUseCase
+from app.usecase.handle_borne_input_usecase import HandleBorneInputUseCase
 from app.usecase.handle_mqtt_event_usecase import HandleMqttEventUseCase
 from app import di
 from app.transport.http.error_handler import register_error_handlers
@@ -66,13 +67,30 @@ async def lifespan(app: FastAPI):
         on_game_over=finish_borne_game.execute,
     )
 
+    # Entrées physiques de la borne (boutons / plunger ESP32) → flippers
+    # relayés aux écrans + navigation appliquée via le bus borne.
+    handle_borne_input = HandleBorneInputUseCase(
+        borne_id=di.get_borne_id(),
+        borne_store=di.get_borne_store(),
+        broadcaster=di.get_borne_hub_manager(),
+        apply_intent=apply_intent,
+    )
+
     async def mqtt_handler(event: MqttEvent) -> None:
-        await handle_event_usecase.execute(event)
+        # Les entrées borne et les capteurs de jeu partagent le broker mais ont
+        # des préfixes distincts : on aiguille sur le segment `/input/`.
+        if "/input/" in event.topic:
+            await handle_borne_input.handle(event)
+        else:
+            await handle_event_usecase.execute(event)
 
     mqtt_gateway = AioMqttGateway(
         host=settings.mqtt_broker_host,
         port=settings.mqtt_broker_port,
-        topic_filter=settings.mqtt_topic_filter,
+        topic_filter=[
+            settings.mqtt_topic_filter,
+            settings.mqtt_borne_input_topic_filter,
+        ],
         handler=mqtt_handler,
     )
     await mqtt_gateway.start()
