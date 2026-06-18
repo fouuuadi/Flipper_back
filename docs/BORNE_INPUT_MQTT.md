@@ -30,33 +30,33 @@ active.
 
 ## IDs de boutons et mapping (côté backend)
 
-| `id` | GPIO | Rôle |
-|---|---|---|
-| `L1` | 4 | Flipper **gauche** (press/release) |
-| `R1` | 13 | Flipper **droit** (press/release) |
-| `L2` | 16 | Navigation **gauche** *(menu à curseur — à venir)* |
-| `R2` | 25 | Navigation **droite** *(menu à curseur — à venir)* |
-| `top` | 17 (vert) | **Valider / Start** (résolu selon l'état) |
-| `bottom` | 19 (rouge) | **Retour** ; en jeu → **pause** |
-| `middle` | 18 (jaune) | Secondaire *(réservé)* |
-| `under_plunger` | 33 | *(réservé)* |
-| plunger | 32 | **Lanceur** |
-
-`top` (CONFIRM) et `bottom` (BACK) sont résolus en action concrète selon la
-phase de navigation courante (`splash`→`PRESS_A`, `menu`→`START_GAME`,
-`game_over`→`REPLAY`, etc.).
+| `id` | GPIO | `control:nav` relayé | Rôle (orienté côté front) |
+|---|---|---|---|
+| `L1` | 4 | — (`control:flipper`) | Flipper **gauche** |
+| `R1` | 13 | — (`control:flipper`) | Flipper **droit** |
+| `L2` | 16 | `left` | Curseur **gauche** (menu / roulette) |
+| `R2` | 25 | `right` | Curseur **droite** |
+| `top` | 17 (vert) | `confirm` | **Valider** |
+| `bottom` | 19 (rouge) | `back` | **Retour** |
+| `middle` | 18 (jaune) | `help` | Écran **contrôles** |
+| `under_plunger` | 33 | — | *(réservé)* |
+| plunger | 32 | — (`control:plunger`) | **Lanceur** |
 
 ## Événements relayés au front (bus borne WS)
 
-Les flippers et le plunger sont rebroadcastés tels quels aux 3 écrans :
+Toutes les entrées physiques sont **relayées telles quelles** aux 3 écrans ; le
+backend ne décide pas de l'action (le front connaît l'écran courant / le
+curseur) :
 
 ```json
 { "type": "control:flipper", "side": "left|right", "action": "press|release" }
 { "type": "control:plunger", "action": "charge|release" }
+{ "type": "control:nav", "button": "confirm|back|left|right|help" }
 ```
 
-La navigation, elle, passe par la machine d'état borne et ressort en
-`nav:state` (inchangé).
+Le front oriente `control:nav` selon l'écran (splash → `PRESS_A`, déplacement de
+curseur dans le menu, roulette d'identification…) puis renvoie l'intent final
+que le backend applique → `nav:state` (inchangé).
 
 ## ⚠️ À corriger côté firmware
 
