@@ -4,6 +4,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    """Configuration de l'app, 100% pilotée par l'environnement.
+
+    Aucune valeur par défaut : si une variable manque, pydantic lève une
+    `ValidationError` au démarrage (fail-fast) plutôt que de booter sur une
+    config silencieusement fausse (mauvais host, mot de passe par défaut…).
+    En dev les variables viennent du `.env` ; sur la borne elles sont
+    injectées par le dashboard Fliphetic / le `docker-compose.yml` de déploiement.
+    """
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -11,22 +20,26 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    app_port: int = 8080
+    app_port: int
 
-    db_host: str = "localhost"
-    db_port: int = 5432
-    db_name: str = "flipper"
-    db_user: str = "flipper_user"
-    db_password: str = "flipper_password"
+    db_host: str
+    db_port: int
+    db_name: str
+    db_user: str
+    db_password: str
 
-    redis_url: str = "redis://localhost:6379"
-    redis_session_ttl_seconds: int = 1800
+    redis_url: str
+    redis_session_ttl_seconds: int
 
-    mqtt_broker_host: str = "localhost"
-    mqtt_broker_port: int = 1883
-    mqtt_topic_filter: str = "flipper/#"
+    mqtt_broker_host: str
+    mqtt_broker_port: int
+    mqtt_topic_filter: str
 
-    log_level: str = "INFO"
+    # Identifiant du canal borne permanent : les 3 écrans (playfield/backglass/
+    # dmd) s'y connectent au boot et reçoivent l'état partagé broadcasté.
+    borne_id: str
+
+    log_level: str
 
 
 @lru_cache
