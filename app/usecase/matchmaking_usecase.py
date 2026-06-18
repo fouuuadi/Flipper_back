@@ -42,18 +42,13 @@ class MatchmakingUseCase:
             if opponent_player is None:
                 raise PlayerNotFoundError(f"Player {opponent.player1_id} not found")
 
-            room = await self.room_repo.create(GameMode.ONE_V_ONE)
-
-            # Vérifier unicité des pseudos dans la room (les 2 joueurs ne peuvent pas avoir le même)
-            for pseudo in (player.pseudo, opponent_player.pseudo):
-                is_unique = await self.session_service.check_pseudo_uniqueness_in_room(
-                    room_code=room.code,
-                    pseudo=pseudo,
+            # Vérifier l'unicité avant de créer la room
+            if player.pseudo == opponent_player.pseudo:
+                raise PseudoCollisionInRoomError(
+                    f"Pseudo '{player.pseudo}' identique pour les deux joueurs du match 1v1"
                 )
-                if not is_unique:
-                    raise PseudoCollisionInRoomError(
-                        f"Pseudo '{pseudo}' déjà présent dans la room '{room.code}'"
-                    )
+
+            room = await self.room_repo.create(GameMode.ONE_V_ONE)
 
             game1 = await self.game_repo.create(
                 player_id=opponent.player1_id,
