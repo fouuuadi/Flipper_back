@@ -67,13 +67,11 @@ async def lifespan(app: FastAPI):
         on_game_over=finish_borne_game.execute,
     )
 
-    # Entrées physiques de la borne (boutons / plunger ESP32) → flippers
-    # relayés aux écrans + navigation appliquée via le bus borne.
+    # Entrées physiques de la borne (boutons / plunger ESP32) → relayées aux 3
+    # écrans (flippers/plunger + nav). Le front oriente la nav selon l'écran.
     handle_borne_input = HandleBorneInputUseCase(
         borne_id=di.get_borne_id(),
-        borne_store=di.get_borne_store(),
         broadcaster=di.get_borne_hub_manager(),
-        apply_intent=apply_intent,
     )
 
     async def mqtt_handler(event: MqttEvent) -> None:
