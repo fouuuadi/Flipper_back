@@ -52,9 +52,9 @@ async def _insert_finished_game(db_pool, player_id: int, mode: str, score: int) 
 
 @pytest.mark.asyncio
 async def test_leaderboard_returns_top_scores_ordered_desc(db_pool, clean_tables, http_client):
-    p1 = await _insert_player(db_pool, "AAA#HETIC")
-    p2 = await _insert_player(db_pool, "BBB#HETIC")
-    p3 = await _insert_player(db_pool, "CCC#HETIC")
+    p1 = await _insert_player(db_pool, "AAA")
+    p2 = await _insert_player(db_pool, "BBB")
+    p3 = await _insert_player(db_pool, "CCC")
     await _insert_finished_game(db_pool, p1, "solo", 1000)
     await _insert_finished_game(db_pool, p1, "solo", 4200)
     await _insert_finished_game(db_pool, p2, "solo", 2500)
@@ -74,8 +74,8 @@ async def test_leaderboard_returns_top_scores_ordered_desc(db_pool, clean_tables
 
 @pytest.mark.asyncio
 async def test_leaderboard_filters_by_mode(db_pool, clean_tables, http_client):
-    p1 = await _insert_player(db_pool, "AAA#HETIC")
-    p2 = await _insert_player(db_pool, "BBB#HETIC")
+    p1 = await _insert_player(db_pool, "AAA")
+    p2 = await _insert_player(db_pool, "BBB")
     await _insert_finished_game(db_pool, p1, "solo", 5000)
     await _insert_finished_game(db_pool, p2, "1v1", 9000)
 
@@ -88,8 +88,8 @@ async def test_leaderboard_filters_by_mode(db_pool, clean_tables, http_client):
 
 @pytest.mark.asyncio
 async def test_leaderboard_without_mode_aggregates_all_modes(db_pool, clean_tables, http_client):
-    p1 = await _insert_player(db_pool, "AAA#HETIC")
-    p2 = await _insert_player(db_pool, "BBB#HETIC")
+    p1 = await _insert_player(db_pool, "AAA")
+    p2 = await _insert_player(db_pool, "BBB")
     await _insert_finished_game(db_pool, p1, "solo", 100)
     await _insert_finished_game(db_pool, p1, "1v1", 8000)
     await _insert_finished_game(db_pool, p2, "solo", 3000)
@@ -104,7 +104,7 @@ async def test_leaderboard_without_mode_aggregates_all_modes(db_pool, clean_tabl
 @pytest.mark.asyncio
 async def test_leaderboard_respects_limit(db_pool, clean_tables, http_client):
     for i in range(5):
-        pid = await _insert_player(db_pool, f"P{i:02d}#HETIC")
+        pid = await _insert_player(db_pool, f"P{i:02d}")
         await _insert_finished_game(db_pool, pid, "solo", 100 * (i + 1))
 
     response = await http_client.get("/leaderboard", params={"mode": "solo", "limit": 3})
@@ -117,7 +117,7 @@ async def test_leaderboard_respects_limit(db_pool, clean_tables, http_client):
 
 @pytest.mark.asyncio
 async def test_leaderboard_ignores_non_finished_games(db_pool, clean_tables, http_client):
-    p1 = await _insert_player(db_pool, "AAA#HETIC")
+    p1 = await _insert_player(db_pool, "AAA")
     async with db_pool.acquire() as conn:
         await conn.execute(
             "INSERT INTO games (player_id, room_id, mode, score, status) "

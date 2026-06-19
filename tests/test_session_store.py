@@ -32,7 +32,7 @@ async def store(redis_client):
 def _make_session(session_id: str | None = None, **overrides) -> Session:
     base = {
         "session_id": session_id or uuid.uuid4().hex,
-        "pseudo": "ABC#4521",
+        "pseudo": "ABC",
         "score": 0,
         "status": SessionStatus.WAITING,
         "room_code": None,

@@ -30,7 +30,7 @@ def _player(id_: int, pseudo: str) -> Player:
 
 @pytest.mark.asyncio
 async def test_get_by_id_returns_player():
-    repo = _InMemoryPlayerRepo(_player(1, "ABC#HETIC"))
+    repo = _InMemoryPlayerRepo(_player(1, "ABC"))
     player = await GetPlayerUseCase(repo).execute_by_id(1)
     assert player.id == 1
 
@@ -44,15 +44,15 @@ async def test_get_by_id_missing_raises():
 
 @pytest.mark.asyncio
 async def test_get_by_pseudo_normalises_input():
-    repo = _InMemoryPlayerRepo(_player(1, "ABC#HETIC"))
-    # Raw "abc" should resolve to ABC#HETIC via the helper.
+    repo = _InMemoryPlayerRepo(_player(1, "ABC"))
+    # Raw "abc" should resolve to ABC via the helper.
     player = await GetPlayerUseCase(repo).execute_by_pseudo("abc")
-    assert player.pseudo == "ABC#HETIC"
+    assert player.pseudo == "ABC"
 
 
 @pytest.mark.asyncio
 async def test_get_by_pseudo_missing_raises():
-    repo = _InMemoryPlayerRepo(_player(1, "ABC#HETIC"))
+    repo = _InMemoryPlayerRepo(_player(1, "ABC"))
     with pytest.raises(PlayerNotFoundError):
         await GetPlayerUseCase(repo).execute_by_pseudo("xyz")
 

@@ -51,7 +51,7 @@ class _RecordingBroadcaster:
 def _session(status: SessionStatus) -> Session:
     return Session(
         session_id="sid",
-        pseudo="FOO#0001",
+        pseudo="FOO",
         score=100,
         lives=2,
         combo=1,

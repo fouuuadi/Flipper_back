@@ -61,7 +61,7 @@ def _game(player_id: int, mode: GameMode, score: int, id_: int = 0) -> Game:
 
 
 def _player(id_: int) -> Player:
-    return Player(id=id_, pseudo="ABC#HETIC", created_at=datetime.now(timezone.utc))
+    return Player(id=id_, pseudo="ABC", created_at=datetime.now(timezone.utc))
 
 
 @pytest.mark.asyncio

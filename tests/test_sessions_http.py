@@ -39,7 +39,7 @@ async def test_create_session_applies_default_hashtag(redis_client, http_client)
     assert response.status_code == 201
     body = response.json()
     assert "session_id" in body
-    assert body["pseudo"] == "ABC#HETIC"
+    assert body["pseudo"] == "ABC"
     assert body["status"] == "waiting"
     assert body["room_code"] is None
 
@@ -51,10 +51,10 @@ async def test_create_session_applies_default_hashtag(redis_client, http_client)
 
 @pytest.mark.asyncio
 async def test_create_session_keeps_explicit_hashtag(redis_client, http_client):
-    response = await http_client.post("/sessions", json={"pseudo": "foo#bar12"})
+    response = await http_client.post("/sessions", json={"pseudo": "foo"})
 
     assert response.status_code == 201
-    assert response.json()["pseudo"] == "FOO#BAR12"
+    assert response.json()["pseudo"] == "FOO"
 
 
 @pytest.mark.asyncio
@@ -66,12 +66,12 @@ async def test_create_session_with_room_code(redis_client, http_client):
     assert response.status_code == 201
     body = response.json()
     assert body["room_code"] == "ROOM01"
-    assert body["pseudo"] == "XYZ#HETIC"
+    assert body["pseudo"] == "XYZ"
 
 
 @pytest.mark.parametrize(
     "bad_pseudo",
-    ["AB", "ABCD", "abc#x", "abc#toolong", "abc-#hello", "###"],
+    ["AB", "ABCD", "abc#x", "ab@", "abc-#hello", "###"],
 )
 @pytest.mark.asyncio
 async def test_create_session_rejects_invalid_pseudo_format(

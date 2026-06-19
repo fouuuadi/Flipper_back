@@ -83,7 +83,7 @@ def _usecase(borne: Borne | None = None, sessions: FakeSessionStore | None = Non
 def _playing_session(session_id: str = "sess-1") -> Session:
     return Session(
         session_id=session_id,
-        pseudo="ABC#HETIC",
+        pseudo="ABC",
         status=SessionStatus.PLAYING,
         created_at=datetime.now(timezone.utc),
     )
