@@ -49,6 +49,10 @@ class HandleBorneInputUseCase:
         self._borne_id = borne_id
         self._broadcaster = broadcaster
         self._tap_release_delay_s = tap_release_delay_s
+        # On garde une référence forte aux tâches de release : sinon l'event loop
+        # peut les garbage-collecter avant qu'elles s'exécutent → le `release`
+        # n'est jamais diffusé et le flipper reste bloqué levé.
+        self._release_tasks: set[asyncio.Task] = set()
 
     async def handle(self, event: MqttEvent) -> None:
         if event.topic.endswith("/plunger"):
@@ -88,7 +92,9 @@ class HandleBorneInputUseCase:
             await asyncio.sleep(self._tap_release_delay_s)
             await self._broadcast(release)
 
-        asyncio.create_task(_release_later())
+        task = asyncio.create_task(_release_later())
+        self._release_tasks.add(task)
+        task.add_done_callback(self._release_tasks.discard)
 
     async def _broadcast(self, message: dict) -> None:
         await self._broadcaster.broadcast_to_borne(self._borne_id, message)
