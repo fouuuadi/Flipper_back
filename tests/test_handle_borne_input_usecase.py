@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 
 from app.domain.ports.mqtt_gateway import MqttEvent
@@ -19,26 +21,45 @@ class RecordingBroadcaster:
         self.messages.append(message)
 
 
-def _make():
+def _make(delay: float = 0.0):
     broadcaster = RecordingBroadcaster()
-    usecase = HandleBorneInputUseCase(BORNE_ID, broadcaster)
+    usecase = HandleBorneInputUseCase(BORNE_ID, broadcaster, tap_release_delay_s=delay)
     return usecase, broadcaster
 
 
-def _button(button_id: str, state: int) -> MqttEvent:
+def _button(button_id: str, state: int = 0) -> MqttEvent:
     return MqttEvent(topic=BUTTON_TOPIC, payload={"id": button_id, "state": state, "ts": 1})
 
 
-# --- flippers ---------------------------------------------------------------
+# --- navigation : un message = une action -----------------------------------
+
+
+@pytest.mark.parametrize(
+    "button_id,expected",
+    [("top", "confirm"), ("bottom", "back"), ("L2", "left"), ("R2", "right"), ("middle", "help")],
+)
+@pytest.mark.asyncio
+async def test_nav_relayed_once_per_press(button_id, expected):
+    usecase, broadcaster = _make()
+
+    await usecase.handle(_button(button_id))
+
+    assert broadcaster.messages == [{"type": "control:nav", "button": expected}]
+
+
+# --- flippers : coup bref (press immédiat, release différé) ------------------
 
 
 @pytest.mark.asyncio
-async def test_left_flipper_press_and_release_are_relayed():
-    usecase, broadcaster = _make()
+async def test_left_flipper_taps_press_then_release():
+    usecase, broadcaster = _make(delay=0)
 
-    await usecase.handle(_button("L1", 1))
-    await usecase.handle(_button("L1", 0))
+    await usecase.handle(_button("L1"))
+    assert broadcaster.messages == [
+        {"type": "control:flipper", "side": "left", "action": "press"}
+    ]
 
+    await asyncio.sleep(0.01)  # laisse la tâche de release s'exécuter
     assert broadcaster.messages == [
         {"type": "control:flipper", "side": "left", "action": "press"},
         {"type": "control:flipper", "side": "left", "action": "release"},
@@ -46,71 +67,44 @@ async def test_left_flipper_press_and_release_are_relayed():
 
 
 @pytest.mark.asyncio
-async def test_right_flipper_maps_to_right_side():
-    usecase, broadcaster = _make()
+async def test_right_flipper_side():
+    usecase, broadcaster = _make(delay=0)
 
-    await usecase.handle(_button("R1", 1))
+    await usecase.handle(_button("R1"))
+    await asyncio.sleep(0.01)
 
     assert broadcaster.messages == [
-        {"type": "control:flipper", "side": "right", "action": "press"}
+        {"type": "control:flipper", "side": "right", "action": "press"},
+        {"type": "control:flipper", "side": "right", "action": "release"},
     ]
 
 
-# --- plunger ----------------------------------------------------------------
+# --- plunger : coup bref ----------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_plunger_charge_then_release():
-    usecase, broadcaster = _make()
+async def test_plunger_taps_charge_then_release():
+    usecase, broadcaster = _make(delay=0)
 
     await usecase.handle(MqttEvent(topic=PLUNGER_TOPIC, payload={"state": 1, "ts": 1}))
-    await usecase.handle(MqttEvent(topic=PLUNGER_TOPIC, payload={"state": 0, "ts": 2}))
+    assert broadcaster.messages == [{"type": "control:plunger", "action": "charge"}]
 
+    await asyncio.sleep(0.01)
     assert broadcaster.messages == [
         {"type": "control:plunger", "action": "charge"},
         {"type": "control:plunger", "action": "release"},
     ]
 
 
-# --- navigation (relais brut, orienté côté front) ---------------------------
-
-
-@pytest.mark.parametrize(
-    "button_id,expected",
-    [
-        ("top", "confirm"),
-        ("bottom", "back"),
-        ("L2", "left"),
-        ("R2", "right"),
-        ("middle", "help"),
-    ],
-)
-@pytest.mark.asyncio
-async def test_nav_buttons_are_relayed_as_control_nav(button_id, expected):
-    usecase, broadcaster = _make()
-
-    await usecase.handle(_button(button_id, 1))
-
-    assert broadcaster.messages == [{"type": "control:nav", "button": expected}]
-
-
-@pytest.mark.asyncio
-async def test_nav_buttons_act_on_press_only():
-    usecase, broadcaster = _make()
-
-    await usecase.handle(_button("top", 0))  # release → ignoré
-
-    assert broadcaster.messages == []
-
-
 # --- robustesse -------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_unknown_button_id_is_ignored():
+async def test_unknown_button_is_ignored():
     usecase, broadcaster = _make()
 
-    await usecase.handle(_button("does-not-exist", 1))
+    await usecase.handle(_button("does-not-exist"))
+    await asyncio.sleep(0.01)
 
     assert broadcaster.messages == []
 
@@ -119,7 +113,6 @@ async def test_unknown_button_id_is_ignored():
 async def test_malformed_payload_is_ignored():
     usecase, broadcaster = _make()
 
-    await usecase.handle(MqttEvent(topic=BUTTON_TOPIC, payload={"id": "L1"}))  # pas de state
-    await usecase.handle(MqttEvent(topic=BUTTON_TOPIC, payload={"state": 1}))  # pas d'id
+    await usecase.handle(MqttEvent(topic=BUTTON_TOPIC, payload={"state": 0}))
 
     assert broadcaster.messages == []
