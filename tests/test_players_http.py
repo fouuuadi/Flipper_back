@@ -56,13 +56,6 @@ async def test_post_players_creates_then_returns_same_player(db_pool, clean_play
     assert body2["created_at"] == body1["created_at"]
 
 
-@pytest.mark.asyncio
-async def test_post_players_distinguishes_hashtags(db_pool, clean_players, http_client):
-    r1 = await http_client.post("/players", json={"pseudo": "abc"})
-    r2 = await http_client.post("/players", json={"pseudo": "abc"})
-    assert r1.json()["id"] != r2.json()["id"]
-
-
 @pytest.mark.parametrize("bad_pseudo", ["AB", "ABCD", "abc#x", "ab@", "abc-x"])
 @pytest.mark.asyncio
 async def test_post_players_rejects_invalid_format(db_pool, clean_players, http_client, bad_pseudo):

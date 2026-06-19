@@ -86,7 +86,7 @@ async def test_create_session_rejects_invalid_pseudo():
         await usecase.execute("AB")  # too short
 
     with pytest.raises(InvalidPseudoError):
-        await usecase.execute("abc")  # hashtag too short
+        await usecase.execute("ab@")  # caractère invalide
 
     with pytest.raises(InvalidPseudoError):
-        await usecase.execute("abc")  # hashtag too long
+        await usecase.execute("ABCD")  # trop long
