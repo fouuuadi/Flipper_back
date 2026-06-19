@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from app.domain.ports.borne_event_broadcaster import BorneEventBroadcaster
@@ -9,15 +10,6 @@ logger = logging.getLogger(__name__)
 
 
 # Mapping bouton physique (id publié par l'ESP32) → sens dans le jeu.
-#
-# C'est *la* table de correspondance, volontairement côté backend : le firmware
-# reste agnostique du jeu (il envoie juste « L1 pressé »), et on peut re-mapper
-# sans reflasher l'ESP32. Deux familles, toutes deux **relayées** au front :
-#   - "flipper" → le playfield actionne la 3D.
-#   - "nav"     → le front oriente selon l'écran courant (curseur de menu,
-#                 roulette d'identification…) ; c'est lui qui connaît l'UI.
-#
-# `under_plunger` reste libre (réservé).
 _BUTTON_MAP: dict[str, tuple[str, str]] = {
     "L1": ("flipper", "left"),
     "R1": ("flipper", "right"),
@@ -28,27 +20,40 @@ _BUTTON_MAP: dict[str, tuple[str, str]] = {
     "middle": ("nav", "help"),
 }
 
+# Durée du « coup » de flipper / lanceur (cf. note ci-dessous).
+_TAP_RELEASE_DELAY_S = 0.12
+
 
 class HandleBorneInputUseCase:
     """Relaie les entrées physiques de la borne (MQTT) aux 3 écrans.
 
-    - Flippers / plunger → `control:flipper` / `control:plunger` (le playfield
-      actionne la 3D ; même rôle que le clavier en dev).
-    - Boutons d'interface → `control:nav` (`confirm/back/left/right/help`). Le
-      backend ne décide PAS de l'action ici : le front oriente selon l'écran
-      courant (seul lui connaît le curseur / la sélection), puis renvoie l'intent
-      final (PRESS_A, START_GAME, PLAYERS_VALIDATED…) que le backend applique.
+    ⚠️ Adapté au firmware actuel de l'ESP32 (partagé) : celui-ci a un bug
+    press/release et n'émet **qu'un seul message par appui**, sans distinguer
+    pressé de relâché (boutons toujours `state:0`, plunger toujours `state:1`).
+    On traite donc **chaque message comme un appui ponctuel** :
 
-    Le firmware publie sans `sessionId` : la borne est la seule source d'état.
+    - nav → un `control:nav` par appui ;
+    - flipper / plunger → un « coup » bref (`press`/`charge` immédiat, puis
+      `release` après un court délai), faute de pouvoir maintenir.
+
+    Quand un firmware émettant un vrai press/release sera flashé, revenir à un
+    relais direct de l'état (cf. historique git).
     """
 
-    def __init__(self, borne_id: str, broadcaster: BorneEventBroadcaster):
+    def __init__(
+        self,
+        borne_id: str,
+        broadcaster: BorneEventBroadcaster,
+        tap_release_delay_s: float = _TAP_RELEASE_DELAY_S,
+    ):
         self._borne_id = borne_id
         self._broadcaster = broadcaster
+        self._tap_release_delay_s = tap_release_delay_s
 
     async def handle(self, event: MqttEvent) -> None:
         if event.topic.endswith("/plunger"):
-            await self._handle_plunger(event.payload)
+            await self._tap({"type": "control:plunger", "action": "charge"}, {"action": "release"})
+            logger.info("[borne-input] plunger → tap")
         elif event.topic.endswith("/button"):
             await self._handle_button(event.payload)
         else:
@@ -56,45 +61,34 @@ class HandleBorneInputUseCase:
 
     async def _handle_button(self, payload: dict) -> None:
         button_id = payload.get("id")
-        state = payload.get("state")
-        if not isinstance(button_id, str) or state not in (0, 1):
+        if not isinstance(button_id, str):
             logger.warning("malformed borne button event: %r", payload)
             return
 
         mapping = _BUTTON_MAP.get(button_id)
-        logger.info(
-            "[borne-input] button id=%s state=%s -> %s",
-            button_id,
-            state,
-            mapping if mapping else "unmapped",
-        )
+        logger.info("[borne-input] button id=%s → %s", button_id, mapping or "unmapped")
         if mapping is None:
             return
 
         kind, value = mapping
-        if kind == "flipper":
-            action = "press" if state == 1 else "release"
-            await self._broadcaster.broadcast_to_borne(
-                self._borne_id,
-                {"type": "control:flipper", "side": value, "action": action},
-            )
-            return
-
-        # Navigation : on n'agit qu'à l'appui (state == 1), pas au relâché.
-        if state == 1:
-            await self._broadcaster.broadcast_to_borne(
-                self._borne_id,
-                {"type": "control:nav", "button": value},
+        if kind == "nav":
+            await self._broadcast({"type": "control:nav", "button": value})
+        else:  # flipper
+            await self._tap(
+                {"type": "control:flipper", "side": value, "action": "press"},
+                {"action": "release"},
             )
 
-    async def _handle_plunger(self, payload: dict) -> None:
-        state = payload.get("state")
-        if state not in (0, 1):
-            logger.warning("malformed borne plunger event: %r", payload)
-            return
-        action = "charge" if state == 1 else "release"
-        logger.info("[borne-input] plunger state=%s -> %s", state, action)
-        await self._broadcaster.broadcast_to_borne(
-            self._borne_id,
-            {"type": "control:plunger", "action": action},
-        )
+    async def _tap(self, press: dict, release_patch: dict) -> None:
+        """Diffuse l'appui, puis le relâché après un court délai (coup bref)."""
+        await self._broadcast(press)
+        release = {**press, **release_patch}
+
+        async def _release_later() -> None:
+            await asyncio.sleep(self._tap_release_delay_s)
+            await self._broadcast(release)
+
+        asyncio.create_task(_release_later())
+
+    async def _broadcast(self, message: dict) -> None:
+        await self._broadcaster.broadcast_to_borne(self._borne_id, message)
