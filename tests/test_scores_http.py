@@ -90,7 +90,7 @@ async def test_post_scores_flushes_session_end_to_end(
             "SELECT pseudo FROM players WHERE id = $1",
             body["playerId"],
         )
-        assert row["pseudo"].startswith("ABC#")
+        assert row["pseudo"] == "ABC"
 
         row = await conn.fetchrow(
             "SELECT mode, score FROM games WHERE id = $1",
