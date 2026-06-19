@@ -55,7 +55,7 @@ async def _instant_sleep(_seconds: float) -> None:
 def _session(status: SessionStatus = SessionStatus.PAUSED) -> Session:
     return Session(
         session_id="sid",
-        pseudo="FOO#0001",
+        pseudo="FOO",
         score=4200,
         lives=1,
         combo=5,

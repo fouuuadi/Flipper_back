@@ -35,7 +35,7 @@ async def test_create_session_applies_default_hashtag_when_missing():
 
     session = await usecase.execute("abc")
 
-    assert session.pseudo == "ABC#HETIC"
+    assert session.pseudo == "ABC"
     assert session.score == 0
     assert session.status == SessionStatus.WAITING
     assert session.room_code is None
@@ -48,9 +48,9 @@ async def test_create_session_keeps_user_provided_hashtag():
     store = _InMemorySessionStore()
     usecase = CreateSessionUseCase(store)
 
-    session = await usecase.execute("foo#bar12")
+    session = await usecase.execute("foo")
 
-    assert session.pseudo == "FOO#BAR12"
+    assert session.pseudo == "FOO"
 
 
 @pytest.mark.asyncio
@@ -62,7 +62,7 @@ async def test_create_session_generates_unique_ids():
     s2 = await usecase.execute("abc")
 
     # Same pseudo (no random suffix anymore) but distinct session ids.
-    assert s1.pseudo == s2.pseudo == "ABC#HETIC"
+    assert s1.pseudo == s2.pseudo == "ABC"
     assert s1.session_id != s2.session_id
 
 
@@ -74,7 +74,7 @@ async def test_create_session_with_room_code():
     session = await usecase.execute("xyz", room_code="ROOM01")
 
     assert session.room_code == "ROOM01"
-    assert session.pseudo == "XYZ#HETIC"
+    assert session.pseudo == "XYZ"
 
 
 @pytest.mark.asyncio
@@ -86,7 +86,7 @@ async def test_create_session_rejects_invalid_pseudo():
         await usecase.execute("AB")  # too short
 
     with pytest.raises(InvalidPseudoError):
-        await usecase.execute("abc#xy")  # hashtag too short
+        await usecase.execute("abc")  # hashtag too short
 
     with pytest.raises(InvalidPseudoError):
-        await usecase.execute("abc#toolong")  # hashtag too long
+        await usecase.execute("abc")  # hashtag too long

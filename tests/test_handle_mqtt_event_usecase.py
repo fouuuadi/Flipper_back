@@ -47,7 +47,7 @@ class _InMemoryEventBuffer:
 def _session(session_id: str = "abc", score: int = 0, lives: int = 3, combo: int = 0) -> Session:
     return Session(
         session_id=session_id,
-        pseudo="FOO#0001",
+        pseudo="FOO",
         score=score,
         lives=lives,
         combo=combo,

@@ -46,7 +46,7 @@ async def test_post_players_creates_then_returns_same_player(db_pool, clean_play
     first = await http_client.post("/players", json={"pseudo": "abc"})
     assert first.status_code == 200
     body1 = first.json()
-    assert body1["pseudo"] == "ABC#HETIC"
+    assert body1["pseudo"] == "ABC"
     assert body1["id"] > 0
 
     second = await http_client.post("/players", json={"pseudo": "ABC"})
@@ -58,12 +58,12 @@ async def test_post_players_creates_then_returns_same_player(db_pool, clean_play
 
 @pytest.mark.asyncio
 async def test_post_players_distinguishes_hashtags(db_pool, clean_players, http_client):
-    r1 = await http_client.post("/players", json={"pseudo": "abc#alpha"})
-    r2 = await http_client.post("/players", json={"pseudo": "abc#beta1"})
+    r1 = await http_client.post("/players", json={"pseudo": "abc"})
+    r2 = await http_client.post("/players", json={"pseudo": "abc"})
     assert r1.json()["id"] != r2.json()["id"]
 
 
-@pytest.mark.parametrize("bad_pseudo", ["AB", "ABCD", "abc#x", "abc#toolong", "abc-x"])
+@pytest.mark.parametrize("bad_pseudo", ["AB", "ABCD", "abc#x", "ab@", "abc-x"])
 @pytest.mark.asyncio
 async def test_post_players_rejects_invalid_format(db_pool, clean_players, http_client, bad_pseudo):
     response = await http_client.post("/players", json={"pseudo": bad_pseudo})
@@ -72,13 +72,13 @@ async def test_post_players_rejects_invalid_format(db_pool, clean_players, http_
 
 @pytest.mark.asyncio
 async def test_get_player_by_id_returns_player(db_pool, clean_players, http_client):
-    created = await http_client.post("/players", json={"pseudo": "xyz#alpha"})
+    created = await http_client.post("/players", json={"pseudo": "xyz"})
     player_id = created.json()["id"]
 
     response = await http_client.get(f"/players/{player_id}")
 
     assert response.status_code == 200
-    assert response.json()["pseudo"] == "XYZ#ALPHA"
+    assert response.json()["pseudo"] == "XYZ"
 
 
 @pytest.mark.asyncio
@@ -90,13 +90,13 @@ async def test_get_player_by_id_returns_404_when_missing(db_pool, clean_players,
 
 @pytest.mark.asyncio
 async def test_get_player_by_pseudo_query_param(db_pool, clean_players, http_client):
-    await http_client.post("/players", json={"pseudo": "foo#bar12"})
+    await http_client.post("/players", json={"pseudo": "foo"})
 
-    found = await http_client.get("/players", params={"pseudo": "foo#bar12"})
+    found = await http_client.get("/players", params={"pseudo": "foo"})
     assert found.status_code == 200
-    assert found.json()["pseudo"] == "FOO#BAR12"
+    assert found.json()["pseudo"] == "FOO"
 
-    missing = await http_client.get("/players", params={"pseudo": "xyz#nope1"})
+    missing = await http_client.get("/players", params={"pseudo": "xyz"})
     assert missing.status_code == 404
 
 
@@ -120,7 +120,7 @@ async def test_player_history_returns_games_desc(db_pool, clean_players, http_cl
     assert response.status_code == 200
     body = response.json()
     assert body["player_id"] == player_id
-    assert body["pseudo"] == "ABC#HETIC"
+    assert body["pseudo"] == "ABC"
     assert [g["game_id"] for g in body["games"]] == [g3, g2, g1]
     assert all(g["finished_at"] for g in body["games"])
     assert all(g["started_at"] for g in body["games"])

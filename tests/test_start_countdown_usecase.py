@@ -37,7 +37,7 @@ async def _instant_sleep(_seconds: float) -> None:
 def _ready_session() -> Session:
     return Session(
         session_id="sid",
-        pseudo="FOO#0001",
+        pseudo="FOO",
         score=0,
         lives=3,
         combo=0,

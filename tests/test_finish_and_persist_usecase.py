@@ -118,7 +118,7 @@ async def test_flush_persists_player_game_and_events(
 async def test_flush_reuses_existing_player(
     session_store, event_buffer, game_repo, player_repo, clean_tables, db_pool
 ):
-    pseudo = "REU#0001"
+    pseudo = "REU"
     session_id_1 = uuid.uuid4().hex
     s1 = _build_session(session_id_1, score=100)
     s1.pseudo = pseudo
@@ -225,7 +225,7 @@ async def test_first_solo_flush_marks_improved_true_with_null_previous_best(
 async def test_second_solo_flush_with_higher_score_marks_improved_true(
     session_store, event_buffer, game_repo, player_repo, clean_tables
 ):
-    pseudo = "BST#HETIC"
+    pseudo = "BST"
     s1_id = uuid.uuid4().hex
     s1 = _build_session(s1_id, score=1000, mode=GameMode.SOLO)
     s1.pseudo = pseudo
@@ -249,7 +249,7 @@ async def test_second_solo_flush_with_higher_score_marks_improved_true(
 async def test_solo_flush_with_lower_score_marks_improved_false(
     session_store, event_buffer, game_repo, player_repo, clean_tables
 ):
-    pseudo = "WRS#HETIC"
+    pseudo = "WRS"
     s1_id = uuid.uuid4().hex
     s1 = _build_session(s1_id, score=4500, mode=GameMode.SOLO)
     s1.pseudo = pseudo
@@ -273,7 +273,7 @@ async def test_solo_flush_with_lower_score_marks_improved_false(
 async def test_solo_flush_with_equal_score_marks_improved_false(
     session_store, event_buffer, game_repo, player_repo, clean_tables
 ):
-    pseudo = "EQS#HETIC"
+    pseudo = "EQS"
     s1_id = uuid.uuid4().hex
     s1 = _build_session(s1_id, score=2500, mode=GameMode.SOLO)
     s1.pseudo = pseudo
@@ -312,7 +312,7 @@ async def test_one_v_one_flush_returns_improved_none(
 async def test_one_v_one_flush_after_solo_does_not_use_solo_best_as_previous(
     session_store, event_buffer, game_repo, player_repo, clean_tables
 ):
-    pseudo = "MIX#HETIC"
+    pseudo = "MIX"
     s1_id = uuid.uuid4().hex
     s1 = _build_session(s1_id, score=8000, mode=GameMode.SOLO)
     s1.pseudo = pseudo

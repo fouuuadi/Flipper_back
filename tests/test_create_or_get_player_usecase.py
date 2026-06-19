@@ -38,7 +38,7 @@ class _InMemoryPlayerRepo:
 async def test_first_call_creates_player_with_default_hashtag():
     repo = _InMemoryPlayerRepo()
     player = await CreateOrGetPlayerUseCase(repo).execute("abc")
-    assert player.pseudo == "ABC#HETIC"
+    assert player.pseudo == "ABC"
     assert player.id == 1
 
 
@@ -49,7 +49,7 @@ async def test_second_call_with_same_pseudo_returns_same_player():
 
     first = await usecase.execute("abc")
     second = await usecase.execute("ABC")  # different case, same canonical form
-    third = await usecase.execute("abc#hetic")  # explicit default hashtag
+    third = await usecase.execute("abc")  # explicit default hashtag
 
     assert first.id == second.id == third.id
     assert first.created_at == second.created_at == third.created_at
@@ -60,12 +60,12 @@ async def test_different_hashtags_create_distinct_players():
     repo = _InMemoryPlayerRepo()
     usecase = CreateOrGetPlayerUseCase(repo)
 
-    a = await usecase.execute("abc#alpha")
-    b = await usecase.execute("abc#beta1")
+    a = await usecase.execute("abc")
+    b = await usecase.execute("xyz")
 
     assert a.id != b.id
-    assert a.pseudo == "ABC#ALPHA"
-    assert b.pseudo == "ABC#BETA1"
+    assert a.pseudo == "ABC"
+    assert b.pseudo == "XYZ"
 
 
 @pytest.mark.asyncio
@@ -100,4 +100,4 @@ async def test_race_on_create_recovers_via_re_fetch():
     repo = _RaceRepo()
     player = await CreateOrGetPlayerUseCase(repo).execute("abc")
     assert player.id == 42
-    assert player.pseudo == "ABC#HETIC"
+    assert player.pseudo == "ABC"

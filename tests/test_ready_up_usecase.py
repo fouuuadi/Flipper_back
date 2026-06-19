@@ -36,7 +36,7 @@ class _RecordingBroadcaster:
 def _make_session(**overrides) -> Session:
     base = {
         "session_id": "abc123",
-        "pseudo": "FOO#0001",
+        "pseudo": "FOO",
         "score": 0,
         "status": SessionStatus.WAITING,
         "room_code": None,
