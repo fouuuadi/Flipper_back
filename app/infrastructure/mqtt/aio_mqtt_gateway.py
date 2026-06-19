@@ -94,6 +94,10 @@ class AioMqttGateway(MqttGateway):
 
     async def _dispatch(self, message: aiomqtt.Message) -> None:
         topic = str(message.topic)
+        # Diagnostic borne : trace TOUT message reçu du broker (avant parsing /
+        # routage). Si ce log n'apparaît jamais, le back ne reçoit rien du broker
+        # → l'ESP32 ne publie pas (ou pas sur ce broker). À baisser en debug après.
+        logger.info("[mqtt] reçu topic=%s payload=%s", topic, bytes(message.payload)[:160])
         try:
             payload = json.loads(message.payload)
         except (json.JSONDecodeError, TypeError, ValueError):
