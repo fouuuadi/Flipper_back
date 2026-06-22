@@ -11,11 +11,11 @@ from app.domain.ports.player_repository import PlayerRepository
 
 @dataclass
 class PlayerHistoryItem:
-    """A Game from the player history, paired with the `is_best` flag.
+    """Un Game de l'historique du joueur, accompagné du flag `is_best`.
 
-    `is_best` is `True` for the solo game whose score equals the player's
-    best solo score. It stays `False` for every 1v1 game (the notion of
-    personal record is meaningless when scores are tied to a match).
+    `is_best` vaut `True` pour la partie solo dont le score est égal au meilleur
+    score solo du joueur. Il reste `False` pour toute partie 1v1 (la notion de
+    record personnel n'a pas de sens quand les scores sont liés à un match).
     """
 
     game: Game
@@ -23,12 +23,12 @@ class PlayerHistoryItem:
 
 
 class GetPlayerHistoryUseCase:
-    """Read-only history of finished games for a given player_id.
+    """Historique en lecture seule des parties terminées pour un player_id donné.
 
-    The use case first checks the player exists (so callers can distinguish
-    "no games yet" from "this player does not exist") then fetches the
-    finished games filtered by the optional mode and flags the personal best
-    solo game in the returned list.
+    Le use case vérifie d'abord que le joueur existe (pour que les appelants
+    puissent distinguer "aucune partie encore" de "ce joueur n'existe pas"),
+    puis récupère les parties terminées filtrées par le mode optionnel et marque
+    la meilleure partie solo dans la liste renvoyée.
     """
 
     def __init__(

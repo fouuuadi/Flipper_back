@@ -35,6 +35,9 @@ class RoomHub:
         """
         Envoie un message à tous les clients connectés de la room.
         """
+        # Un client peut s'être déconnecté entre-temps : on isole chaque envoi pour
+        # qu'une socket morte ne bloque pas la diffusion aux autres. L'erreur est
+        # ignorée volontairement, le client sera retiré à sa prochaine déconnexion.
         for client in self.clients:
             try:
                 await client.send_json(message)

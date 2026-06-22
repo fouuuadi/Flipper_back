@@ -48,7 +48,7 @@ class _InMemoryEventBuffer:
 
 
 async def _instant_sleep(_seconds: float) -> None:
-    """Sleep replacement so unit tests don't wait 4 real seconds."""
+    """Remplacement de sleep pour que les tests unitaires n'attendent pas 4 vraies secondes."""
     return None
 
 
@@ -66,11 +66,11 @@ def _session(status: SessionStatus = SessionStatus.PAUSED) -> Session:
 
 
 async def _drain_background_tasks() -> None:
-    """Wait for fire-and-forget tasks (the countdown) to complete.
+    """Attend la fin des tâches fire-and-forget (le countdown).
 
-    ResumeSessionUseCase launches the countdown via `asyncio.create_task`
-    to keep the WS receive loop reactive in prod; in tests we drain those
-    tasks before asserting on the resulting broadcast sequence.
+    ResumeSessionUseCase lance le countdown via `asyncio.create_task` pour
+    garder la boucle de réception WS réactive en prod ; dans les tests on
+    draine ces tâches avant d'asserter sur la séquence de broadcast résultante.
     """
     pending = [
         t
@@ -92,7 +92,7 @@ async def test_resume_orchestrates_ready_then_countdown_then_playing():
     ).execute("sid")
     await _drain_background_tasks()
 
-    # The exact broadcast sequence the front relies on.
+    # La séquence de broadcast exacte sur laquelle le front s'appuie.
     types_and_values = [
         (
             msg["type"],
@@ -111,7 +111,7 @@ async def test_resume_orchestrates_ready_then_countdown_then_playing():
     # Total broadcasts = 1 (ready) + 4 (ticks) + 1 (playing).
     assert len(broadcaster.calls) == 2 + len(COUNTDOWN_VALUES)
 
-    # End state: session is PLAYING, score/lives/combo preserved.
+    # État final : session PLAYING, score/lives/combo préservés.
     persisted = await store.get("sid")
     assert persisted.status == SessionStatus.PLAYING
     assert persisted.score == 4200
@@ -121,8 +121,8 @@ async def test_resume_orchestrates_ready_then_countdown_then_playing():
 
 @pytest.mark.asyncio
 async def test_resume_first_emits_match_state_ready_before_countdown_starts():
-    """Without the countdown callback the use case stops after PAUSED → READY,
-    proving the READY transition happens up front (and not at the end)."""
+    """Sans le callback de countdown, le use case s'arrête après PAUSED → READY,
+    prouvant que la transition READY se produit au début (et pas à la fin)."""
     store = _InMemorySessionStore(_session(SessionStatus.PAUSED))
     broadcaster = _RecordingBroadcaster()
 
@@ -137,19 +137,19 @@ async def test_resume_first_emits_match_state_ready_before_countdown_starts():
 
 @pytest.mark.asyncio
 async def test_mqtt_score_event_dropped_while_session_is_in_resume_countdown():
-    """During the READY phase opened by cmd:resume, `HandleMqttEventUseCase`
-    must keep dropping score/ball events — same gate as the initial
-    countdown, no special-casing for resume."""
+    """Pendant la phase READY ouverte par cmd:resume, `HandleMqttEventUseCase`
+    doit continuer à dropper les events score/ball — même gate que le countdown
+    initial, pas de traitement spécial pour le resume."""
     store = _InMemorySessionStore(_session(SessionStatus.PAUSED))
     broadcaster = _RecordingBroadcaster()
     buffer = _InMemoryEventBuffer()
 
-    # Run resume without firing the countdown so we can probe the READY
-    # state at our leisure.
+    # Lance le resume sans déclencher le countdown pour pouvoir sonder l'état
+    # READY à loisir.
     await ResumeSessionUseCase(store, broadcaster).execute("sid")
     assert (await store.get("sid")).status == SessionStatus.READY
 
-    # A bumper hit lands while the countdown would still be ticking.
+    # Un bumper hit arrive alors que le countdown serait encore en train de tourner.
     await HandleMqttEventUseCase(store, broadcaster, buffer).execute(
         MqttEvent(
             topic="flipper/bumper/hit",
@@ -158,9 +158,9 @@ async def test_mqtt_score_event_dropped_while_session_is_in_resume_countdown():
     )
 
     persisted = await store.get("sid")
-    assert persisted.score == 4200  # unchanged
+    assert persisted.score == 4200  # inchangé
     assert await buffer.read_all("sid") == []
-    # The only broadcast so far is the match:state: ready from the resume.
+    # Le seul broadcast jusqu'ici est le match:state ready du resume.
     assert all(msg["type"] == "match:state" for _, msg in broadcaster.calls)
 
 

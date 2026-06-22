@@ -102,7 +102,7 @@ async def test_create_sets_ttl(store, redis_client):
     await store.create(session)
 
     ttl = await redis_client.ttl(SESSION_KEY_PREFIX + session.session_id)
-    # Redis TTL returns remaining seconds. Should be between 0 and TTL_SECONDS.
+    # Le TTL Redis renvoie les secondes restantes. Doit être entre 0 et TTL_SECONDS.
     assert 0 < ttl <= TTL_SECONDS
 
     await redis_client.delete(SESSION_KEY_PREFIX + session.session_id)
@@ -110,12 +110,12 @@ async def test_create_sets_ttl(store, redis_client):
 
 @pytest.mark.asyncio
 async def test_get_refreshes_ttl(store, redis_client):
-    """Sliding TTL: a get on the session refreshes its expiration."""
+    """Sliding TTL : un get sur la session rafraîchit son expiration."""
     session = _make_session()
     await store.create(session)
     key = SESSION_KEY_PREFIX + session.session_id
 
-    # Force a short TTL, then call get and verify it has been refreshed.
+    # Force un TTL court, puis appelle get et vérifie qu'il a été rafraîchi.
     await redis_client.expire(key, 60)
     ttl_before = await redis_client.ttl(key)
     assert ttl_before <= 60
@@ -146,7 +146,7 @@ async def test_update_refreshes_ttl(store, redis_client):
 
 @pytest.mark.asyncio
 async def test_room_code_empty_string_returns_none(store, redis_client):
-    """A session stored with an empty string room_code should round-trip to None."""
+    """Une session stockée avec un room_code chaîne vide doit faire un roundtrip vers None."""
     session = _make_session(room_code=None)
     await store.create(session)
 

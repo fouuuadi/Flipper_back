@@ -15,11 +15,11 @@ _CONNECT_TIMEOUT_SECONDS = 10.0
 
 
 class AioMqttGateway(MqttGateway):
-    """`aiomqtt`-backed implementation of `MqttGateway`.
+    """Implémentation de `MqttGateway` basée sur `aiomqtt`.
 
-    Holds the aiomqtt context manager for the lifetime of a background consumer
-    task; `start()` only returns once the SUBSCRIBE has been ack'd, so callers
-    can publish immediately after.
+    Maintient le context manager aiomqtt pendant toute la durée de vie d'une
+    consumer task de fond ; `start()` ne rend la main qu'une fois le SUBSCRIBE
+    acquitté, pour que les appelants puissent publier immédiatement après.
     """
 
     def __init__(
@@ -52,7 +52,7 @@ class AioMqttGateway(MqttGateway):
                 f"MQTT broker {self._host}:{self._port} unreachable"
             ) from exc
         if self._task.done():
-            # consumer crashed before signaling ready — surface a clean error
+            # le consumer a crashé avant de signaler ready — remonter une erreur propre
             exc = self._task.exception()
             if exc is not None:
                 raise RuntimeError(
@@ -88,7 +88,7 @@ class AioMqttGateway(MqttGateway):
             raise
         except Exception:
             logger.exception("MQTT consumer crashed")
-            # unblock any waiter on start()
+            # débloquer tout waiter en attente sur start()
             self._ready.set()
             raise
 
@@ -114,5 +114,5 @@ class AioMqttGateway(MqttGateway):
 
 
 async def log_mqtt_event(event: MqttEvent) -> None:
-    """Default handler used until the use-case bridge lands (#87)."""
+    """Handler par défaut utilisé tant que le pont use-case n'est pas en place (#87)."""
     logger.info("MQTT event: topic=%s payload=%s", event.topic, event.payload)

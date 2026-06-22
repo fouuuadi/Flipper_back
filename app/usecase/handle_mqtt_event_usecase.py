@@ -19,12 +19,12 @@ TOPIC_GAME_OVER = "flipper/game/over"
 
 
 class HandleMqttEventUseCase:
-    """Bridge MQTT events → Redis session update → WS broadcast.
+    """Pont events MQTT → mise à jour de la session Redis → broadcast WS.
 
-    Each event carries a `sessionId` in its payload; we load the matching
-    Redis session, mutate it according to the topic, persist, archive the
-    event in the per-session buffer (consumed at flush time by
-    `FinishAndPersistUseCase`), and notify the connected WS client.
+    Chaque event porte un `sessionId` dans son payload ; on charge la session
+    Redis correspondante, on la mute selon le topic, on persiste, on archive
+    l'event dans le buffer par session (consommé au moment du flush par
+    `FinishAndPersistUseCase`), et on notifie le client WS connecté.
     """
 
     def __init__(
@@ -37,10 +37,10 @@ class HandleMqttEventUseCase:
         self._session_store = session_store
         self._broadcaster = broadcaster
         self._event_buffer = event_buffer
-        # Fired (with session_id) right after a natural game over is broadcast.
-        # The real wiring uses it to auto-persist the run and flip the borne to
-        # `game_over`; injected as a callback to keep this use case unaware of
-        # persistence and bornes.
+        # Déclenché (avec session_id) juste après le broadcast d'un game over
+        # naturel. Le câblage réel l'utilise pour auto-persister la partie et
+        # basculer la borne en `game_over` ; injecté en callback pour que ce use
+        # case reste ignorant de la persistance et des bornes.
         self._on_game_over = on_game_over
 
     async def execute(self, event: MqttEvent) -> None:
@@ -58,9 +58,10 @@ class HandleMqttEventUseCase:
             )
             return
 
-        # Gate score/ball events on the session being actively in PLAYING.
-        # During READY (countdown), PAUSED (UI pause) or OVER, the hardware
-        # may still emit MQTT events but they must not pollute the score.
+        # On conditionne les events score/ball au fait que la session soit
+        # activement en PLAYING. Pendant READY (countdown), PAUSED (pause UI)
+        # ou OVER, le hardware peut continuer d'émettre des events MQTT mais
+        # ils ne doivent pas polluer le score.
         if session.status is not SessionStatus.PLAYING:
             logger.debug(
                 "MQTT event on %s dropped: session %s is %s (not PLAYING)",
@@ -72,7 +73,7 @@ class HandleMqttEventUseCase:
 
         ws_message = self._apply(event, session)
         if ws_message is None:
-            return  # unknown / ignored topic — session left untouched
+            return  # topic inconnu / ignoré — session laissée intacte
 
         await self._session_store.update(session)
         await self._event_buffer.push(
@@ -85,11 +86,11 @@ class HandleMqttEventUseCase:
         )
         await self._broadcaster.broadcast_to_session(session_id, ws_message)
 
-        # `flipper/game/over` triggers two distinct messages: `game:over`
-        # (score-final notification, already built by _apply) and
-        # `match:state: over` (session lifecycle transition driving the
-        # front state machine to gameOver). Front clients can subscribe to
-        # whichever they need.
+        # `flipper/game/over` déclenche deux messages distincts : `game:over`
+        # (notification du score final, déjà construit par _apply) et
+        # `match:state: over` (transition du cycle de vie de la session qui
+        # amène la state machine du front vers gameOver). Les clients front
+        # peuvent s'abonner à celui dont ils ont besoin.
         if event.topic == TOPIC_GAME_OVER:
             await self._broadcaster.broadcast_to_session(
                 session_id,

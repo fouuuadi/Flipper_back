@@ -9,19 +9,19 @@ from app.domain.ports.room_repository import RoomRepository
 
 
 class UnitOfWork(ABC):
-    """Atomic boundary spanning the 4 SQL repositories.
+    """Frontière atomique couvrant les 4 repositories SQL.
 
-    Use cases that touch more than one table (e.g. `StartGameUseCase`
-    upserts a player, creates a room, then creates a game) must run
-    through a UoW so a mid-flight failure rolls everything back instead
-    of leaving orphan rows.
+    Les use cases qui touchent plus d'une table (ex. `StartGameUseCase`
+    upsert un player, crée une room, puis crée un game) doivent passer par
+    un UoW pour qu'un échec en cours de route rollback tout au lieu de
+    laisser des lignes orphelines.
 
-    Usage:
+    Usage :
 
         async with uow:
             player = await uow.players.create(...)
             game = await uow.games.create(player.id, ...)
-        # commit on clean exit, rollback on exception
+        # commit en sortie propre, rollback en cas d'exception
     """
 
     players: PlayerRepository

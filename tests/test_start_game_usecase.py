@@ -80,8 +80,8 @@ async def test_start_1v1_with_existing_room(usecase, db_pool, clean_tables):
 async def test_start_with_nonexistent_room_code_rolls_back(
     usecase, db_pool, clean_tables
 ):
-    """Bug #68: when the room lookup fails, the player upsert from earlier
-    in the same `execute()` must be rolled back — no orphan player row."""
+    """Bug #68 : quand la recherche de room échoue, l'upsert du player effectué
+    plus tôt dans le même `execute()` doit être rollback — pas de player orphelin."""
     with pytest.raises(RoomNotFoundError, match="n'existe pas"):
         await usecase.execute(
             pseudo="dave",

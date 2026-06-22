@@ -12,21 +12,21 @@ logger = logging.getLogger(__name__)
 
 
 class ResumeSessionUseCase:
-    """Transition `PAUSED` → `READY` → `PLAYING` with a 3-2-1-GO countdown.
+    """Transition `PAUSED` → `READY` → `PLAYING` avec un countdown 3-2-1-GO.
 
-    Pre-#111 the resume jumped straight from `PAUSED` to `PLAYING`, which
-    felt brutal UX-wise. Now the use case re-enters the same ceremonial
-    countdown as the initial start: it flips the status to `READY`,
-    broadcasts `match:state: ready`, then fires `StartCountdownUseCase`
-    in a background task (same pattern as `ReadyUpUseCase`). The
-    countdown handles the final `READY → PLAYING` transition itself.
+    Avant #111, le resume sautait directement de `PAUSED` à `PLAYING`, ce qui
+    était brutal côté UX. Désormais le use case rejoue le même countdown
+    cérémonial que le démarrage initial : il bascule le status en `READY`,
+    broadcaste `match:state: ready`, puis lance `StartCountdownUseCase` dans
+    une background task (même pattern que `ReadyUpUseCase`). Le countdown gère
+    lui-même la transition finale `READY → PLAYING`.
 
-    Score, lives and combo are preserved across the pause — only the
-    status changes.
+    Le score, les vies et le combo sont préservés pendant la pause — seul le
+    status change.
 
-    The `start_countdown` callback is injected so this use case stays
-    unaware of the countdown's existence. It's optional so unit tests
-    can isolate the `PAUSED → READY` half independently.
+    Le callback `start_countdown` est injecté pour que ce use case reste
+    ignorant de l'existence du countdown. Il est optionnel pour que les tests
+    unitaires puissent isoler la moitié `PAUSED → READY` indépendamment.
     """
 
     def __init__(
@@ -52,9 +52,9 @@ class ResumeSessionUseCase:
             )
             return
 
-        # PAUSED → READY (countdown phase). During READY,
-        # HandleMqttEventUseCase keeps dropping score/ball events thanks
-        # to its existing `status != PLAYING` guard.
+        # PAUSED → READY (phase de countdown). Pendant READY,
+        # HandleMqttEventUseCase continue de droper les events score/ball
+        # grâce à son guard `status != PLAYING` existant.
         session.status = SessionStatus.READY
         await self._session_store.update(session)
         await self._broadcaster.broadcast_to_session(
@@ -66,6 +66,6 @@ class ResumeSessionUseCase:
             },
         )
 
-        # Final READY → PLAYING transition is owned by the countdown.
+        # La transition finale READY → PLAYING est gérée par le countdown.
         if self._start_countdown is not None:
             asyncio.create_task(self._start_countdown(session_id))

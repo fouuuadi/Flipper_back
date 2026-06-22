@@ -1,6 +1,8 @@
-"""
-DTOs pour la couche Transport HTTP
-Séparation des responsabilités : DTOs dans ce fichier, routes dans games.py
+"""DTOs (contrats requête/réponse) de la couche Transport HTTP.
+
+Volontairement séparés des entités du domaine : ils figent le format de l'API
+côté client, qu'on peut faire évoluer sans toucher au métier. Regroupés par cas
+d'usage (UC-xx) pour suivre les routes de games.py.
 """
 
 from datetime import datetime

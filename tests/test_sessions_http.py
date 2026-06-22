@@ -18,7 +18,7 @@ async def redis_client():
     await client.ping()
     di.set_redis_client(client)
     yield client
-    # Cleanup any keys produced by tests
+    # Nettoie les clés produites par les tests
     async for key in client.scan_iter(match=f"{SESSION_KEY_PREFIX}*"):
         await client.delete(key)
     await client.aclose()
@@ -43,7 +43,7 @@ async def test_create_session_applies_default_hashtag(redis_client, http_client)
     assert body["status"] == "waiting"
     assert body["room_code"] is None
 
-    # Session is in Redis
+    # La session est dans Redis
     stored = await redis_client.hgetall(SESSION_KEY_PREFIX + body["session_id"])
     assert stored["pseudo"] == body["pseudo"]
     assert stored["status"] == "waiting"

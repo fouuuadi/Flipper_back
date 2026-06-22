@@ -107,13 +107,10 @@ async def test_post_scores_unknown_session_returns_404(redis_client, db_pool, cl
     assert resp.json()["error"] == "SessionNotFoundError"
 
 
-async def _flush_session(http_client, pseudo: str, mode: str, score: int) -> dict:
-    """Helper that creates a session, forces its score in Redis, then flushes it."""
+async def _flush_session(http_client, redis, pseudo: str, mode: str, score: int) -> dict:
+    """Helper qui crée une session, force son score dans Redis, puis la flush."""
     create_resp = await http_client.post("/sessions", json={"pseudo": pseudo, "mode": mode})
     session_id = create_resp.json()["session_id"]
-    from app import di as app_di
-
-    redis = app_di._redis_client
     await redis.hset(f"session:{session_id}", "score", str(score))
     return (await http_client.post("/scores", json={"sessionId": session_id})).json()
 
@@ -122,15 +119,15 @@ async def _flush_session(http_client, pseudo: str, mode: str, score: int) -> dic
 async def test_post_scores_solo_improved_flag_progression(
     redis_client, db_pool, clean_tables, http_client
 ):
-    r1 = await _flush_session(http_client, "abc", "solo", 1200)
+    r1 = await _flush_session(http_client, redis_client, "abc", "solo", 1200)
     assert r1["improved"] is True
     assert r1["previousBest"] is None
 
-    r2 = await _flush_session(http_client, "abc", "solo", 4500)
+    r2 = await _flush_session(http_client, redis_client, "abc", "solo", 4500)
     assert r2["improved"] is True
     assert r2["previousBest"] == 1200
 
-    r3 = await _flush_session(http_client, "abc", "solo", 800)
+    r3 = await _flush_session(http_client, redis_client, "abc", "solo", 800)
     assert r3["improved"] is False
     assert r3["previousBest"] == 4500
 
@@ -139,6 +136,6 @@ async def test_post_scores_solo_improved_flag_progression(
 async def test_post_scores_one_v_one_returns_null_improved(
     redis_client, db_pool, clean_tables, http_client
 ):
-    body = await _flush_session(http_client, "abc", "1v1", 3000)
+    body = await _flush_session(http_client, redis_client, "abc", "1v1", 3000)
     assert body["improved"] is None
     assert body["previousBest"] is None

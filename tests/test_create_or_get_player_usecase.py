@@ -48,8 +48,8 @@ async def test_second_call_with_same_pseudo_returns_same_player():
     usecase = CreateOrGetPlayerUseCase(repo)
 
     first = await usecase.execute("abc")
-    second = await usecase.execute("ABC")  # different case, same canonical form
-    third = await usecase.execute("abc")  # explicit default hashtag
+    second = await usecase.execute("ABC")  # casse différente, même forme canonique
+    third = await usecase.execute("abc")  # hashtag par défaut explicite
 
     assert first.id == second.id == third.id
     assert first.created_at == second.created_at == third.created_at
@@ -77,7 +77,7 @@ async def test_invalid_pseudo_raises():
 
 @pytest.mark.asyncio
 async def test_race_on_create_recovers_via_re_fetch():
-    """Simulate a concurrent INSERT: get_by_pseudo says no, create raises duplicate."""
+    """Simule un INSERT concurrent : get_by_pseudo dit non, create lève duplicate."""
 
     class _RaceRepo(_InMemoryPlayerRepo):
         def __init__(self):
@@ -87,11 +87,11 @@ async def test_race_on_create_recovers_via_re_fetch():
         async def get_by_pseudo(self, pseudo: str):
             if not self._race_done:
                 self._race_done = True
-                return None  # first lookup: empty
+                return None  # premier lookup : vide
             return self._by_pseudo.get(pseudo)
 
         async def create(self, pseudo: str):
-            # Race winner already inserted the player.
+            # Le gagnant de la race a déjà inséré le player.
             self._by_pseudo[pseudo] = Player(
                 id=42, pseudo=pseudo, created_at=datetime.now(timezone.utc)
             )

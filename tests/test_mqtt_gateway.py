@@ -64,7 +64,7 @@ async def test_gateway_filters_topics_outside_subscription(topic_prefix):
         await _publish(f"{topic_prefix}/match", json.dumps({"x": 2}))
         await asyncio.wait_for(handler.received.wait(), timeout=3.0)
 
-        # The off-filter message must not show up.
+        # Le message hors filtre ne doit pas apparaître.
         assert all(e.topic.startswith(topic_prefix + "/") for e in handler.events)
         assert any(e.payload == {"x": 2} for e in handler.events)
     finally:
@@ -81,7 +81,7 @@ async def test_gateway_drops_non_json_payloads(topic_prefix):
         await _publish(f"{topic_prefix}/ok", json.dumps({"ok": True}))
         await asyncio.wait_for(handler.received.wait(), timeout=3.0)
 
-        # The garbage message is silently dropped; only the valid one reaches the handler.
+        # Le message garbage est silencieusement ignoré ; seul le valide atteint le handler.
         topics = [e.topic for e in handler.events]
         assert f"{topic_prefix}/ok" in topics
         assert f"{topic_prefix}/garbage" not in topics
@@ -109,7 +109,7 @@ async def test_gateway_drops_non_object_payloads(topic_prefix):
 @pytest.mark.asyncio
 async def test_gateway_raises_when_broker_unreachable():
     handler = _RecordingHandler()
-    # Pick an unused high port to force a connection failure quickly.
+    # Choisit un port inutilisé pour forcer rapidement un échec de connexion.
     gw = AioMqttGateway("127.0.0.1", 1, "test/#", handler)
     with pytest.raises(RuntimeError):
         await gw.start()
@@ -131,5 +131,5 @@ async def test_gateway_double_start_raises(topic_prefix):
 async def test_gateway_stop_is_idempotent():
     handler = _RecordingHandler()
     gw = AioMqttGateway(MQTT_HOST, MQTT_PORT, "test/#", handler)
-    # stop without start must not raise
+    # stop sans start ne doit pas lever d'exception
     await gw.stop()

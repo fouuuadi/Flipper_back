@@ -90,6 +90,39 @@ async def finish_game(
 
 
 @router.get(
+    "/list",
+    status_code=status.HTTP_200_OK,
+    response_model=ListGamesResponse,
+)
+async def list_games(
+    status: str | None = None,
+    game_repo: GameRepository = Depends(di.get_game_repo),
+):
+    """Liste toutes les games filtrées par status."""
+    usecase = ListGamesUseCase(game_repo)
+
+    result = await usecase.execute(status=status)
+
+    games_dtos = [
+        GameListItemDTO(
+            game_id=game.id,
+            room_id=game.room_id,
+            player_id=game.player_id,
+            score=game.score,
+            status=game.status.value,
+            mode=game.mode.value,
+            started_at=game.started_at,
+        )
+        for game in result["games"]
+    ]
+
+    return ListGamesResponse(games=games_dtos)
+
+
+# NB : les routes statiques (/list, /rooms/{code}/state) doivent être déclarées
+# AVANT la route paramétrée /{game_id}. Sinon FastAPI fait matcher "list" sur
+# {game_id} et la route est inatteignable (422 à la conversion en int).
+@router.get(
     "/{game_id}",
     status_code=status.HTTP_200_OK,
     response_model=GameStateResponse,
@@ -172,33 +205,3 @@ async def get_room_state(
         status=result["room"].status.value,
         games=games_dtos,
     )
-
-
-@router.get(
-    "/list",
-    status_code=status.HTTP_200_OK,
-    response_model=ListGamesResponse,
-)
-async def list_games(
-    status: str | None = None,
-    game_repo: GameRepository = Depends(di.get_game_repo),
-):
-    """Liste toutes les games filtrées par status."""
-    usecase = ListGamesUseCase(game_repo)
-
-    result = await usecase.execute(status=status)
-
-    games_dtos = [
-        GameListItemDTO(
-            game_id=game.id,
-            room_id=game.room_id,
-            player_id=game.player_id,
-            score=game.score,
-            status=game.status.value,
-            mode=game.mode.value,
-            started_at=game.started_at,
-        )
-        for game in result["games"]
-    ]
-
-    return ListGamesResponse(games=games_dtos)

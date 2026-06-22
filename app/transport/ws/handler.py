@@ -34,16 +34,17 @@ async def websocket_subscribe(
     borne_hub_manager=Depends(di.get_borne_hub_manager),
     expected_borne_id: str = Depends(di.get_borne_id),
 ):
-    """Subscribe to game events.
+    """S'abonner aux events de jeu.
 
-    Pick exactly one of:
-    - `?borne_id=...` — join the permanent borne bus (the 3 screens). Receive
-      the shared navigation + match state, and send `intent` / `cmd:*` messages.
-    - `?session_id=...` — receive events for that session, and send
-      `cmd:pause` / `cmd:resume` / `cmd:abandon` to drive the session
-      lifecycle (MATCH_SYNC protocol).
-    - `?room_code=...` — receive everything broadcast for that room
-      (legacy room flow, read-only).
+    Choisir exactement l'un de :
+    - `?borne_id=...` — rejoindre le bus permanent de la borne (les 3 écrans).
+      Reçoit l'état de navigation + de match partagé, et envoie des messages
+      `intent` / `cmd:*`.
+    - `?session_id=...` — reçoit les events de cette session, et envoie
+      `cmd:pause` / `cmd:resume` / `cmd:abandon` pour piloter le cycle de vie
+      de la session (protocole MATCH_SYNC).
+    - `?room_code=...` — reçoit tout ce qui est broadcasté pour cette room
+      (ancien flow room, lecture seule).
     """
     session_id = websocket.query_params.get("session_id")
     room_code = websocket.query_params.get("room_code")
@@ -123,11 +124,11 @@ async def _handle_borne_intent(
     borne_id: str,
     apply_intent: ApplyBorneIntentUseCase,
 ) -> None:
-    """Parse a borne message and route it.
+    """Parse un message de borne et le route.
 
-    Handles `{"type": "intent", "action": ...}` (navigation) and the match
-    controls `cmd:pause` / `cmd:resume` / `cmd:abandon` (which drive the borne's
-    active session). Malformed messages are logged and dropped.
+    Gère `{"type": "intent", "action": ...}` (navigation) et les contrôles de
+    match `cmd:pause` / `cmd:resume` / `cmd:abandon` (qui pilotent la session
+    active de la borne). Les messages malformés sont loggés et ignorés.
     """
     try:
         payload = json.loads(raw)
@@ -187,8 +188,8 @@ async def _handle_session_command(
     session_store: SessionStore,
     broadcaster: SessionEventBroadcaster,
 ) -> None:
-    """Parse a `cmd:*` JSON payload from the client and route it to the
-    matching use case. Malformed messages are logged and dropped silently.
+    """Parse un payload JSON `cmd:*` du client et le route vers le use case
+    correspondant. Les messages malformés sont loggés et ignorés silencieusement.
     """
     try:
         payload = json.loads(raw)
