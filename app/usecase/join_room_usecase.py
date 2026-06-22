@@ -4,9 +4,10 @@ from app.domain.ports.room_repository import RoomRepository
 
 
 class JoinRoomUseCase:
-    """
-    Valide que la room existe et retourne son état.
-    Permet au client de se connecter à une room via son code.
+    """Rejoint une room par son code : valide qu'elle existe et renvoie son état.
+
+    On retourne aussi les parties actives dans la foulée pour éviter au client un
+    second appel juste après avoir rejoint (flux REST legacy rooms/games).
     """
 
     def __init__(self, room_repository: RoomRepository, game_repository: GameRepository):

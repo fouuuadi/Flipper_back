@@ -6,8 +6,11 @@ from app.domain.ports.game_repository import GameRepository
 
 
 class AddGameEventUseCase:
-    """
-    Usecase pour ajouter un événement à une game en cours.
+    """Ajoute un événement à une game en cours (flux REST legacy rooms/games).
+
+    Le jeu sur borne ne passe pas par ici : ses events arrivent par MQTT et sont
+    bufferisés en Redis (cf. handle_mqtt_event_usecase). Ce use case sert le flux
+    HTTP historique où le client pousse explicitement ses events.
     """
 
     def __init__(
