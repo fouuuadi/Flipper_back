@@ -61,7 +61,7 @@ async def test_create_session_generates_unique_ids():
     s1 = await usecase.execute("abc")
     s2 = await usecase.execute("abc")
 
-    # Same pseudo (no random suffix anymore) but distinct session ids.
+    # Même pseudo (plus de suffixe aléatoire) mais des session ids distincts.
     assert s1.pseudo == s2.pseudo == "ABC"
     assert s1.session_id != s2.session_id
 
@@ -83,7 +83,7 @@ async def test_create_session_rejects_invalid_pseudo():
     usecase = CreateSessionUseCase(store)
 
     with pytest.raises(InvalidPseudoError):
-        await usecase.execute("AB")  # too short
+        await usecase.execute("AB")  # trop court
 
     with pytest.raises(InvalidPseudoError):
         await usecase.execute("ab@")  # caractère invalide

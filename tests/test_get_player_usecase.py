@@ -11,7 +11,7 @@ class _InMemoryPlayerRepo:
     def __init__(self, *players: Player):
         self._players = {p.id: p for p in players}
 
-    async def create(self, pseudo: str) -> Player:  # pragma: no cover - not used here
+    async def create(self, pseudo: str) -> Player:  # pragma: no cover - non utilisé ici
         raise NotImplementedError
 
     async def get_by_id(self, id_: int):
@@ -45,7 +45,7 @@ async def test_get_by_id_missing_raises():
 @pytest.mark.asyncio
 async def test_get_by_pseudo_normalises_input():
     repo = _InMemoryPlayerRepo(_player(1, "ABC"))
-    # Raw "abc" should resolve to ABC via the helper.
+    # Le "abc" brut doit être résolu en ABC via le helper.
     player = await GetPlayerUseCase(repo).execute_by_pseudo("abc")
     assert player.pseudo == "ABC"
 

@@ -1,9 +1,10 @@
-"""Shared pytest fixtures for the integration test suite.
+"""Fixtures pytest partagées pour la suite de tests d'intégration.
 
-Centralises the asyncpg pool + table truncation pattern so every test file
-no longer has to copy/paste the same boilerplate. Existing tests keep their
-local fixtures when they need a different scope or extra wiring (e.g.
-calling `di.set_db_pool` on the FastAPI app).
+Centralise le pattern pool asyncpg + truncation des tables pour que chaque
+fichier de test n'ait plus à copier/coller le même boilerplate. Les tests
+existants gardent leurs fixtures locales quand ils ont besoin d'un scope
+différent ou d'un câblage supplémentaire (par ex. appeler `di.set_db_pool`
+sur l'app FastAPI).
 """
 from __future__ import annotations
 
@@ -24,7 +25,7 @@ def _db_host() -> str:
 
 
 async def make_db_pool() -> asyncpg.Pool:
-    """Build an asyncpg pool from the standard DB_* env vars."""
+    """Construit un pool asyncpg à partir des variables d'env DB_* standard."""
     return await asyncpg.create_pool(
         host=_db_host(),
         port=int(os.getenv("DB_PORT", 5432)),

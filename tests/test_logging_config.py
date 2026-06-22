@@ -96,7 +96,7 @@ def test_configure_logging_is_idempotent():
 
 def test_configure_logging_writes_json_to_stdout(capsys):
     configure_logging("INFO")
-    # Force the handler to write into capsys-captured stream.
+    # Force le handler à écrire dans le stream capturé par capsys.
     handler = logging.getLogger().handlers[0]
     buffer = io.StringIO()
     handler.stream = buffer
@@ -113,7 +113,7 @@ def test_configure_logging_writes_json_to_stdout(capsys):
 
 @pytest.fixture(autouse=True)
 def restore_logging():
-    """Reset root logger after each test to keep them isolated."""
+    """Réinitialise le root logger après chaque test pour les garder isolés."""
     original_handlers = logging.getLogger().handlers[:]
     original_level = logging.getLogger().level
     yield

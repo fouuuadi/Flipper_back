@@ -1,8 +1,8 @@
-"""Integration tests for `PgUnitOfWork`.
+"""Tests d'intégration pour `PgUnitOfWork`.
 
-We hit the real Postgres pool to validate the *atomic* behaviour: clean
-exit commits, exception rolls back, and the 4 repositories share a
-single connection during the block.
+On tape sur le vrai pool Postgres pour valider le comportement *atomique* :
+une sortie propre commit, une exception rollback, et les 4 repositories
+partagent une seule connexion pendant le bloc.
 """
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ async def make_uow(db_pool):
 
 @pytest.mark.asyncio
 async def test_uow_commits_on_clean_exit(make_uow, db_pool, clean_tables):
-    """After a clean `async with`, all writes are visible outside."""
+    """Après un `async with` propre, toutes les écritures sont visibles à l'extérieur."""
     async with make_uow() as uow:
         player = await uow.players.create("alice")
         room = await uow.rooms.create(GameMode.SOLO)
@@ -43,11 +43,11 @@ async def test_uow_commits_on_clean_exit(make_uow, db_pool, clean_tables):
 async def test_uow_rolls_back_on_exception_no_orphan_rows(
     make_uow, db_pool, clean_tables
 ):
-    """If anything raises mid-transaction, nothing persists.
+    """Si quoi que ce soit lève en pleine transaction, rien n'est persisté.
 
-    This is the exact bug #68 fixed: the pre-UoW `StartGameUseCase` did
-    4 separate connection calls. A failure on the 3rd call left orphan
-    player + room rows behind.
+    C'est exactement le bug corrigé par #68 : avant l'UoW, `StartGameUseCase`
+    faisait 4 appels de connexion séparés. Un échec au 3e appel laissait
+    derrière lui des lignes player + room orphelines.
     """
     class _Boom(Exception):
         pass
@@ -66,8 +66,8 @@ async def test_uow_rolls_back_on_exception_no_orphan_rows(
 
 @pytest.mark.asyncio
 async def test_uow_repos_share_the_same_connection(make_uow, clean_tables):
-    """The 4 repos exposed by the UoW must all be bound to the same conn —
-    otherwise they couldn't sit inside the same SQL transaction."""
+    """Les 4 repos exposés par l'UoW doivent tous être liés à la même conn —
+    sinon ils ne pourraient pas tenir dans la même transaction SQL."""
     async with make_uow() as uow:
         assert uow.players._executor is uow.rooms._executor
         assert uow.rooms._executor is uow.games._executor
@@ -78,7 +78,7 @@ async def test_uow_repos_share_the_same_connection(make_uow, clean_tables):
 async def test_uow_uncommitted_writes_invisible_to_outside_pool(
     make_uow, db_pool, clean_tables
 ):
-    """Mid-transaction, a fresh pool connection should not see the write."""
+    """En pleine transaction, une nouvelle connexion du pool ne doit pas voir l'écriture."""
     async with make_uow() as uow:
         await uow.players.create("carol")
 
@@ -86,9 +86,9 @@ async def test_uow_uncommitted_writes_invisible_to_outside_pool(
             n = await outside_conn.fetchval(
                 "SELECT COUNT(*) FROM players WHERE pseudo = $1", "carol"
             )
-        assert n == 0  # still uncommitted
+        assert n == 0  # toujours pas commité
 
-    # After commit, it's visible.
+    # Après le commit, c'est visible.
     async with db_pool.acquire() as outside_conn:
         n = await outside_conn.fetchval(
             "SELECT COUNT(*) FROM players WHERE pseudo = $1", "carol"

@@ -108,7 +108,7 @@ async def test_post_scores_unknown_session_returns_404(redis_client, db_pool, cl
 
 
 async def _flush_session(http_client, redis, pseudo: str, mode: str, score: int) -> dict:
-    """Helper that creates a session, forces its score in Redis, then flushes it."""
+    """Helper qui crée une session, force son score dans Redis, puis la flush."""
     create_resp = await http_client.post("/sessions", json={"pseudo": pseudo, "mode": mode})
     session_id = create_resp.json()["session_id"]
     await redis.hset(f"session:{session_id}", "score", str(score))
