@@ -17,10 +17,11 @@ class GameRepository(ABC):
         mode: GameMode | None,
         limit: int,
     ) -> list[LeaderboardEntry]:
-        """Top `limit` finished games, best score per player, sorted DESC.
+        """Les `limit` meilleures parties terminées, meilleur score par joueur, triées DESC.
 
-        If `mode` is `None`, consider every mode and take the best score across
-        all modes for each player. `rank` is filled by the repo (1-based).
+        Si `mode` vaut `None`, on considère tous les modes et on prend le
+        meilleur score tous modes confondus pour chaque joueur. `rank` est
+        rempli par le repo (commence à 1).
         """
         ...
 
@@ -34,17 +35,17 @@ class GameRepository(ABC):
         finished_at: datetime,
         events: list[dict[str, Any]],
     ) -> tuple[int, int, int]:
-        """Atomic flush of a finished Redis session into the DB.
+        """Flush atomique d'une session Redis terminée vers la base.
 
-        Inserts (upsert) Player, inserts the Game with status=FINISHED, and
-        batch-inserts GameEvents in a single DB transaction. Rolls back on any
-        failure.
+        Insère (upsert) le Player, insère le Game avec status=FINISHED, et
+        insère les GameEvents en batch dans une seule transaction. Rollback
+        en cas d'échec.
 
-        Each event dict must carry `topic` (str), `payload` (dict), and
-        `occured_at` (ISO-8601 str). Events whose topic is unknown are
-        silently skipped.
+        Chaque dict d'event doit porter `topic` (str), `payload` (dict) et
+        `occured_at` (str ISO-8601). Les events dont le topic est inconnu sont
+        ignorés silencieusement.
 
-        Returns `(player_id, game_id, inserted_event_count)`.
+        Renvoie `(player_id, game_id, inserted_event_count)`.
         """
         ...
 
@@ -75,18 +76,19 @@ class GameRepository(ABC):
         mode: GameMode | None,
         limit: int,
     ) -> list[Game]:
-        """Return finished games for a player, newest first.
+        """Renvoie les parties terminées d'un joueur, les plus récentes d'abord.
 
-        Optionally filter by mode. The list is capped by `limit` and ordered
-        by `finished_at DESC`.
+        Filtre optionnel par mode. La liste est plafonnée par `limit` et
+        ordonnée par `finished_at DESC`.
         """
         ...
 
     @abstractmethod
     async def get_best_solo_score(self, player_id: int) -> int | None:
-        """Return the best solo score this player has persisted, or None.
+        """Renvoie le meilleur score solo persisté pour ce joueur, ou None.
 
-        Considers only games with `status='finished'` and `mode='solo'`.
-        Used by the "best score wins" rule applied in `POST /scores`.
+        Ne considère que les parties avec `status='finished'` et `mode='solo'`.
+        Utilisé par la règle "le meilleur score gagne" appliquée dans
+        `POST /scores`.
         """
         ...

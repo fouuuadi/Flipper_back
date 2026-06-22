@@ -15,16 +15,15 @@ COUNTDOWN_TICK_INTERVAL_SECONDS = 1.0
 
 
 class StartCountdownUseCase:
-    """Pre-game ceremonial countdown 3 → 2 → 1 → 0, then `READY` → `PLAYING`.
+    """Countdown cérémonial d'avant-partie 3 → 2 → 1 → 0, puis `READY` → `PLAYING`.
 
-    Broadcasts `countdown:tick` every second so the 3 front apps display
-    the same number at the same moment. Once the final tick is emitted,
-    the session is flipped to `PLAYING` and `match:state: playing` is
-    broadcast — that's the signal that gates `HandleMqttEventUseCase`
-    back open for score/ball events.
+    Broadcaste `countdown:tick` chaque seconde pour que les 3 apps front
+    affichent le même nombre au même instant. Une fois le dernier tick émis,
+    la session bascule en `PLAYING` et `match:state: playing` est broadcasté —
+    c'est le signal qui rouvre `HandleMqttEventUseCase` aux events score/ball.
 
-    The sleep function is injectable so unit tests don't have to wait
-    4 real seconds.
+    La fonction sleep est injectable pour que les tests unitaires n'aient pas
+    à attendre 4 secondes réelles.
     """
 
     def __init__(
@@ -45,8 +44,8 @@ class StartCountdownUseCase:
             )
             await self._sleep(COUNTDOWN_TICK_INTERVAL_SECONDS)
 
-        # Re-read the session: a `cmd:abandon` may have arrived during the
-        # countdown and flipped status to OVER — don't overwrite that.
+        # Re-lire la session : un `cmd:abandon` a pu arriver pendant le
+        # countdown et basculer le status en OVER — ne pas l'écraser.
         session = await self._session_store.get(session_id)
         if session is None:
             logger.info(

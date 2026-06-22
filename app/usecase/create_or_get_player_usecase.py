@@ -7,11 +7,11 @@ from app.domain.pseudo import normalize_and_validate
 
 
 class CreateOrGetPlayerUseCase:
-    """Idempotent upsert by pseudo.
+    """Upsert idempotent par pseudo.
 
-    Two `POST /players` calls with the same pseudo return the same Player
-    (same id, same created_at). The pseudo is normalised before lookup so
-    `abc`, `ABC`, and `abc#hetic` all converge on the same row.
+    Deux appels `POST /players` avec le même pseudo renvoient le même Player
+    (même id, même created_at). Le pseudo est normalisé avant la recherche pour
+    que `abc`, `ABC` et `abc#hetic` convergent tous vers la même ligne.
     """
 
     def __init__(self, player_repository: PlayerRepository):
@@ -27,8 +27,8 @@ class CreateOrGetPlayerUseCase:
         try:
             return await self._repository.create(pseudo)
         except PlayerAlreadyExistsError:
-            # Race: another caller inserted the same pseudo between our
-            # SELECT and INSERT — re-fetch the winning row.
+            # Race : un autre appelant a inséré le même pseudo entre notre
+            # SELECT et notre INSERT — on re-fetch la ligne gagnante.
             recovered = await self._repository.get_by_pseudo(pseudo)
             if recovered is None:
                 raise PlayerNotFoundError(

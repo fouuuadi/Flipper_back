@@ -10,12 +10,12 @@ from app.domain.session import Session, SessionStatus
 
 
 class CreateSessionUseCase:
-    """Create an ephemeral game session in Redis (no DB write).
+    """Crée une session de jeu éphémère dans Redis (aucune écriture en base).
 
-    The pseudo is normalised via `normalize_and_validate` — case folded to
-    upper, with `#HETIC` appended when no hashtag is provided. The resulting
-    pseudo is what propagates through Redis, MQTT events, and the eventual DB
-    flush in `POST /scores`.
+    Le pseudo est normalisé via `normalize_and_validate` — passé en majuscules,
+    avec `#HETIC` ajouté quand aucun hashtag n'est fourni. C'est ce pseudo
+    résultant qui se propage à travers Redis, les events MQTT, et le flush final
+    en base dans `POST /scores`.
     """
 
     def __init__(self, session_store: SessionStore):

@@ -1,9 +1,9 @@
-"""JSON logging configuration.
+"""Configuration du logging JSON.
 
-Stdlib only — no `structlog` or `python-json-logger` dependency. Every log
-record is rendered as a single-line JSON object with a UTC ISO-8601
-timestamp, the level, the logger name, the message, optional `exc_info`,
-and any extra fields passed via `logger.x("msg", extra={...})`.
+Stdlib uniquement — pas de dépendance `structlog` ou `python-json-logger`.
+Chaque log record est rendu comme un objet JSON sur une seule ligne, avec un
+timestamp UTC ISO-8601, le niveau, le nom du logger, le message, un `exc_info`
+optionnel, et tout champ supplémentaire passé via `logger.x("msg", extra={...})`.
 """
 from __future__ import annotations
 
@@ -12,9 +12,9 @@ import logging
 import sys
 from datetime import datetime, timezone
 
-# Attributes that come from the standard LogRecord; everything else attached
-# to a record via `extra=` is treated as a custom field and propagated to the
-# JSON output verbatim.
+# Attributs issus du LogRecord standard ; tout le reste attaché à un record
+# via `extra=` est traité comme un champ custom et propagé tel quel dans la
+# sortie JSON.
 _STANDARD_RECORD_ATTRS = frozenset(
     {
         "name",
@@ -45,7 +45,7 @@ _STANDARD_RECORD_ATTRS = frozenset(
 
 
 class JsonFormatter(logging.Formatter):
-    """Render LogRecord as a single-line JSON object."""
+    """Rend un LogRecord comme un objet JSON sur une seule ligne."""
 
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, object] = {
@@ -68,10 +68,11 @@ class JsonFormatter(logging.Formatter):
 
 
 def configure_logging(level: str = "INFO") -> None:
-    """Wire a single JSON StreamHandler on the root logger.
+    """Branche un unique StreamHandler JSON sur le root logger.
 
-    Idempotent: every call replaces the existing handlers so reloads /
-    repeated `lifespan` invocations don't accumulate duplicates.
+    Idempotent : chaque appel remplace les handlers existants pour que les
+    reloads / les invocations répétées de `lifespan` n'accumulent pas de
+    doublons.
     """
     root = logging.getLogger()
     for handler in list(root.handlers):

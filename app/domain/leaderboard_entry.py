@@ -4,11 +4,12 @@ from pydantic import BaseModel
 
 
 class LeaderboardEntry(BaseModel):
-    """A single row of the leaderboard.
+    """Une ligne du leaderboard.
 
-    Not a DB table — built by aggregating `games` (best score per player) and
-    joining `players` for the pseudo. `rank` is computed by the use case from
-    the ordered list returned by the repository (1-based).
+    Ce n'est pas une table en base — construite en agrégeant `games` (meilleur
+    score par joueur) et en joignant `players` pour le pseudo. `rank` est
+    calculé par le use case à partir de la liste ordonnée renvoyée par le
+    repository (commence à 1).
     """
 
     rank: int
