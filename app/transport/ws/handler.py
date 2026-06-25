@@ -9,6 +9,9 @@ from app.domain.ports.session_event_broadcaster import SessionEventBroadcaster
 from app.domain.ports.session_store import SessionStore
 from app.usecase.abandon_session_usecase import AbandonSessionUseCase
 from app.usecase.apply_borne_intent_usecase import ApplyBorneIntentUseCase
+from app.usecase.finish_and_persist_usecase import FinishAndPersistUseCase
+from app.usecase.finish_borne_game_from_relay_usecase import FinishBorneGameFromRelayUseCase
+from app.usecase.finish_borne_game_usecase import FinishBorneGameUseCase
 from app.usecase.pause_session_usecase import PauseSessionUseCase
 from app.usecase.resume_session_usecase import ResumeSessionUseCase
 from app.usecase.start_countdown_usecase import StartCountdownUseCase
@@ -116,11 +119,30 @@ async def _serve_borne(
     )
 
     apply_intent = ApplyBorneIntentUseCase(borne_store, borne_hub_manager, session_store)
+    # Le playfield est l'autorité du score (table virtuelle) : à la fin de partie
+    # il relaie `game:over` avec le finalScore. On persiste alors le run comme
+    # une fin de partie naturelle (même chemin que le game over MQTT).
+    finish_from_relay = FinishBorneGameFromRelayUseCase(
+        borne_store=borne_store,
+        session_store=session_store,
+        finish_borne_game=FinishBorneGameUseCase(
+            borne_store=borne_store,
+            borne_id=borne_id,
+            apply_intent=apply_intent,
+            finish_and_persist=FinishAndPersistUseCase(
+                session_store=session_store,
+                event_buffer=di.get_event_buffer(),
+                game_repository=di.get_game_repo(),
+                player_repository=di.get_player_repo(),
+            ),
+        ),
+        apply_intent=apply_intent,
+    )
 
     try:
         while True:
             raw = await websocket.receive_text()
-            await _handle_borne_intent(raw, borne_id, apply_intent, borne_hub_manager)
+            await _handle_borne_intent(raw, borne_id, apply_intent, borne_hub_manager, finish_from_relay)
     except WebSocketDisconnect:
         await hub.remove_client(websocket)
         logger.info("[ws] disconnected from borne %s", borne_id)
@@ -131,6 +153,7 @@ async def _handle_borne_intent(
     borne_id: str,
     apply_intent: ApplyBorneIntentUseCase,
     borne_hub_manager,
+    finish_from_relay: FinishBorneGameFromRelayUseCase,
 ) -> None:
     """Parse un message de borne et le route.
 
@@ -167,11 +190,12 @@ async def _handle_borne_intent(
         if isinstance(event, dict) and event.get("type") in _RELAYABLE_EVENT_TYPES:
             await borne_hub_manager.broadcast_to_borne(borne_id, event)
             # Le playfield est l'autorité du game over (table virtuelle, pas de
-            # capteur MQTT). On synchronise la nav borne en `game_over`, sinon
-            # les intents REPLAY / BACK_TO_MENU restent ignorés (valides seulement
-            # depuis cet état) et les boutons de fin de partie semblent morts.
+            # capteur MQTT). On persiste alors le run et on bascule la nav borne
+            # en `game_over` ; sinon le score n'arrive pas en base / au leaderboard
+            # et les intents REPLAY / BACK_TO_MENU (valides seulement depuis cet
+            # état) restent ignorés → boutons de fin de partie morts.
             if event.get("type") == "game:over":
-                await apply_intent.mark_game_over(borne_id)
+                await finish_from_relay.execute(borne_id, event.get("finalScore"))
         else:
             logger.warning("[ws] borne %s sent invalid relay payload: %r", borne_id, payload)
     else:
