@@ -43,3 +43,6 @@ docker-compose.override.yml
 
 devopsfouad.md
 .claude
+
+# Référence locale de la version qui fonctionne (snapshot des commits main)
+WORKING_VERSION.md
