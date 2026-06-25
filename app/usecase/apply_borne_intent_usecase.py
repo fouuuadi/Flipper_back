@@ -41,6 +41,7 @@ _NAV_TRANSITIONS: dict[tuple[BorneNavState, str], BorneNavState] = {
     (BorneNavState.LEADERBOARD, "BACK_TO_MENU"): BorneNavState.MENU,
     (BorneNavState.SETTINGS, "BACK_TO_MENU"): BorneNavState.MENU,
     (BorneNavState.GAME_OVER, "REPLAY"): BorneNavState.IDENTIFICATION,
+    (BorneNavState.GAME_OVER, "OPEN_LEADERBOARD"): BorneNavState.LEADERBOARD,
     (BorneNavState.GAME_OVER, "BACK_TO_MENU"): BorneNavState.MENU,
 }
 
