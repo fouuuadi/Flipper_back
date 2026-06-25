@@ -21,6 +21,13 @@ _CMD_PAUSE = "cmd:pause"
 _CMD_RESUME = "cmd:resume"
 _CMD_ABANDON = "cmd:abandon"
 _MSG_INTENT = "intent"
+_MSG_RELAY = "borne:relay"
+
+# Events de jeu que le playfield (autorité du score) peut pousser pour qu'on les
+# rediffuse aux 3 écrans. Allowlist stricte : la nav reste arbitrée côté backend.
+_RELAYABLE_EVENT_TYPES = frozenset(
+    {"score:update", "ball:lost", "game:over", "match:state"}
+)
 
 
 @router.websocket("/ws")
@@ -113,7 +120,7 @@ async def _serve_borne(
     try:
         while True:
             raw = await websocket.receive_text()
-            await _handle_borne_intent(raw, borne_id, apply_intent)
+            await _handle_borne_intent(raw, borne_id, apply_intent, borne_hub_manager)
     except WebSocketDisconnect:
         await hub.remove_client(websocket)
         logger.info("[ws] disconnected from borne %s", borne_id)
@@ -123,12 +130,15 @@ async def _handle_borne_intent(
     raw: str,
     borne_id: str,
     apply_intent: ApplyBorneIntentUseCase,
+    borne_hub_manager,
 ) -> None:
     """Parse un message de borne et le route.
 
-    Gère `{"type": "intent", "action": ...}` (navigation) et les contrôles de
+    Gère `{"type": "intent", "action": ...}` (navigation), les contrôles de
     match `cmd:pause` / `cmd:resume` / `cmd:abandon` (qui pilotent la session
-    active de la borne). Les messages malformés sont loggés et ignorés.
+    active de la borne), et `{"type": "borne:relay", "event": {...}}` : le
+    playfield (autorité du score) pousse un event de jeu déjà calculé, qu'on
+    rediffuse tel quel aux 3 écrans. Les messages malformés sont loggés et ignorés.
     """
     try:
         payload = json.loads(raw)
@@ -152,6 +162,12 @@ async def _handle_borne_intent(
         await apply_intent.execute(borne_id, action, payload.get("payload"))
     elif msg_type in (_CMD_PAUSE, _CMD_RESUME, _CMD_ABANDON):
         await apply_intent.handle_match_command(borne_id, msg_type)
+    elif msg_type == _MSG_RELAY:
+        event = payload.get("event")
+        if isinstance(event, dict) and event.get("type") in _RELAYABLE_EVENT_TYPES:
+            await borne_hub_manager.broadcast_to_borne(borne_id, event)
+        else:
+            logger.warning("[ws] borne %s sent invalid relay payload: %r", borne_id, payload)
     else:
         logger.warning("[ws] borne %s sent unknown message type %r", borne_id, msg_type)
 
