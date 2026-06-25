@@ -166,6 +166,12 @@ async def _handle_borne_intent(
         event = payload.get("event")
         if isinstance(event, dict) and event.get("type") in _RELAYABLE_EVENT_TYPES:
             await borne_hub_manager.broadcast_to_borne(borne_id, event)
+            # Le playfield est l'autorité du game over (table virtuelle, pas de
+            # capteur MQTT). On synchronise la nav borne en `game_over`, sinon
+            # les intents REPLAY / BACK_TO_MENU restent ignorés (valides seulement
+            # depuis cet état) et les boutons de fin de partie semblent morts.
+            if event.get("type") == "game:over":
+                await apply_intent.mark_game_over(borne_id)
         else:
             logger.warning("[ws] borne %s sent invalid relay payload: %r", borne_id, payload)
     else:

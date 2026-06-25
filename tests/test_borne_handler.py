@@ -13,12 +13,16 @@ class FakeApplyIntent:
     def __init__(self):
         self.intents: list[tuple[str, str, dict | None]] = []
         self.commands: list[tuple[str, str]] = []
+        self.game_overs: list[str] = []
 
     async def execute(self, borne_id: str, action: str, payload=None) -> None:
         self.intents.append((borne_id, action, payload))
 
     async def handle_match_command(self, borne_id: str, cmd_type: str) -> None:
         self.commands.append((borne_id, cmd_type))
+
+    async def mark_game_over(self, borne_id: str) -> None:
+        self.game_overs.append(borne_id)
 
 
 class FakeBorneHubManager:
@@ -80,6 +84,25 @@ async def test_relay_broadcasts_allowed_event_to_borne(event):
     await _handle_borne_intent(raw, BORNE_ID, uc, hub)
     assert hub.broadcasts == [(BORNE_ID, event)]
     assert uc.intents == [] and uc.commands == []
+
+
+@pytest.mark.asyncio
+async def test_relay_game_over_marks_borne_nav_game_over():
+    # Le playfield est l'autorité du game over : le relais doit basculer la nav
+    # borne pour que REPLAY / BACK_TO_MENU fonctionnent ensuite.
+    uc, hub = _deps()
+    raw = json.dumps({"type": "borne:relay", "event": {"type": "game:over", "finalScore": 100}})
+    await _handle_borne_intent(raw, BORNE_ID, uc, hub)
+    assert uc.game_overs == [BORNE_ID]
+    assert hub.broadcasts == [(BORNE_ID, {"type": "game:over", "finalScore": 100})]
+
+
+@pytest.mark.asyncio
+async def test_relay_score_update_does_not_mark_game_over():
+    uc, hub = _deps()
+    raw = json.dumps({"type": "borne:relay", "event": {"type": "score:update", "score": 10, "combo": 1}})
+    await _handle_borne_intent(raw, BORNE_ID, uc, hub)
+    assert uc.game_overs == []
 
 
 @pytest.mark.asyncio
