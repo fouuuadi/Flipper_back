@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import logging
 
 from app.domain.ports.borne_event_broadcaster import BorneEventBroadcaster
@@ -10,54 +9,42 @@ logger = logging.getLogger(__name__)
 
 
 # Mapping bouton physique (id publié par l'ESP32) → sens dans le jeu.
+# Symétrie de la borne : les deux boutons blancs pilotent les flippers, les deux
+# noirs la navigation.
+#   id | bouton physique | rôle
 _BUTTON_MAP: dict[str, tuple[str, str]] = {
-    "L1": ("flipper", "left"),
-    "R1": ("flipper", "right"),
-    "L2": ("nav", "left"),
-    "R2": ("nav", "right"),
+    "L1": ("flipper", "left"),   # blanc gauche
+    "R2": ("flipper", "right"),  # blanc droit
+    "L2": ("nav", "left"),       # noir gauche
+    "R1": ("nav", "right"),      # noir droit
     "top": ("nav", "confirm"),
     "bottom": ("nav", "back"),
     "middle": ("nav", "help"),
 }
 
-# Durée du « coup » de flipper / lanceur (cf. note ci-dessous).
-_TAP_RELEASE_DELAY_S = 0.12
-
 
 class HandleBorneInputUseCase:
     """Relaie les entrées physiques de la borne (MQTT) aux 3 écrans.
 
-    ⚠️ Adapté au firmware actuel de l'ESP32 (partagé) : celui-ci a un bug
-    press/release et n'émet **qu'un seul message par appui**, sans distinguer
-    pressé de relâché (boutons toujours `state:0`, plunger toujours `state:1`).
-    On traite donc **chaque message comme un appui ponctuel** :
+    Le firmware ESP32 émet un vrai press/release : un message ``state:1`` à
+    l'appui, ``state:0`` au relâchement (cf. ``Button::onPress``/``onRelease``).
+    On relaie donc l'état réel du bouton :
 
-    - nav → un `control:nav` par appui ;
-    - flipper / plunger → un « coup » bref (`press`/`charge` immédiat, puis
-      `release` après un court délai), faute de pouvoir maintenir.
-
-    Quand un firmware émettant un vrai press/release sera flashé, revenir à un
-    relais direct de l'état (cf. historique git).
+    - nav → un seul ``control:nav`` à l'appui (``state:1``) ; le relâchement
+      (``state:0``) est ignoré, sinon chaque appui déclencherait l'action deux
+      fois ;
+    - flipper / plunger → ``press``/``charge`` à l'appui, ``release`` au
+      relâchement, ce qui permet de maintenir un flipper levé tant que le bouton
+      reste enfoncé.
     """
 
-    def __init__(
-        self,
-        borne_id: str,
-        broadcaster: BorneEventBroadcaster,
-        tap_release_delay_s: float = _TAP_RELEASE_DELAY_S,
-    ):
+    def __init__(self, borne_id: str, broadcaster: BorneEventBroadcaster):
         self._borne_id = borne_id
         self._broadcaster = broadcaster
-        self._tap_release_delay_s = tap_release_delay_s
-        # On garde une référence forte aux tâches de release : sinon l'event loop
-        # peut les garbage-collecter avant qu'elles s'exécutent → le `release`
-        # n'est jamais diffusé et le flipper reste bloqué levé.
-        self._release_tasks: set[asyncio.Task] = set()
 
     async def handle(self, event: MqttEvent) -> None:
         if event.topic.endswith("/plunger"):
-            await self._tap({"type": "control:plunger", "action": "charge"}, {"action": "release"})
-            logger.info("[borne-input] plunger → tap")
+            await self._handle_plunger(event.payload)
         elif event.topic.endswith("/button"):
             await self._handle_button(event.payload)
         else:
@@ -70,31 +57,30 @@ class HandleBorneInputUseCase:
             return
 
         mapping = _BUTTON_MAP.get(button_id)
-        logger.info("[borne-input] button id=%s → %s", button_id, mapping or "unmapped")
-        if mapping is None:
+        state = payload.get("state")
+        logger.info(
+            "[borne-input] button id=%s state=%s → %s", button_id, state, mapping or "unmapped"
+        )
+        if mapping is None or state not in (0, 1):
             return
 
         kind, value = mapping
         if kind == "nav":
-            await self._broadcast({"type": "control:nav", "button": value})
-        else:  # flipper
-            await self._tap(
-                {"type": "control:flipper", "side": value, "action": "press"},
-                {"action": "release"},
-            )
+            # Une seule action par appui : on relaie le front montant, pas le
+            # relâchement.
+            if state == 1:
+                await self._broadcast({"type": "control:nav", "button": value})
+        else:  # flipper : on suit l'état physique du bouton.
+            action = "press" if state == 1 else "release"
+            await self._broadcast({"type": "control:flipper", "side": value, "action": action})
 
-    async def _tap(self, press: dict, release_patch: dict) -> None:
-        """Diffuse l'appui, puis le relâché après un court délai (coup bref)."""
-        await self._broadcast(press)
-        release = {**press, **release_patch}
-
-        async def _release_later() -> None:
-            await asyncio.sleep(self._tap_release_delay_s)
-            await self._broadcast(release)
-
-        task = asyncio.create_task(_release_later())
-        self._release_tasks.add(task)
-        task.add_done_callback(self._release_tasks.discard)
+    async def _handle_plunger(self, payload: dict) -> None:
+        state = payload.get("state")
+        if state not in (0, 1):
+            logger.warning("malformed borne plunger event: %r", payload)
+            return
+        action = "charge" if state == 1 else "release"
+        await self._broadcast({"type": "control:plunger", "action": action})
 
     async def _broadcast(self, message: dict) -> None:
         await self._broadcaster.broadcast_to_borne(self._borne_id, message)
