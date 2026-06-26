@@ -10,6 +10,8 @@ vers l'instance unique `container` : FastAPI (`Depends(...)`) et le bootstrap on
 besoin de callables stables, c'est la couture qui les leur fournit.
 """
 
+from typing import TYPE_CHECKING
+
 import asyncpg
 from redis.asyncio import Redis
 
@@ -23,6 +25,9 @@ from app.domain.ports.player_repository import PlayerRepository
 from app.domain.ports.room_repository import RoomRepository
 from app.domain.ports.session_store import SessionStore
 from app.domain.ports.unit_of_work import UnitOfWork
+
+if TYPE_CHECKING:
+    from app.domain.ports.matchmaking_repository import MatchmakingRepository
 from app.infrastructure.db.game_event_repository import PgGameEventRepository
 from app.infrastructure.db.game_repository import PgGameRepository
 from app.infrastructure.db.player_repository import PgPlayerRepository
@@ -30,6 +35,7 @@ from app.infrastructure.db.room_repository import PgRoomRepository
 from app.infrastructure.db.unit_of_work import PgUnitOfWork
 from app.infrastructure.redis.borne_store import RedisBorneStore
 from app.infrastructure.redis.event_buffer import RedisEventBuffer
+from app.infrastructure.redis.session_service import RedisSessionService
 from app.infrastructure.redis.session_store import RedisSessionStore
 from app.infrastructure.ws.borne_hub import borne_hub_manager
 from app.infrastructure.ws.room_hub import hub_manager
@@ -166,12 +172,25 @@ def get_event_repo() -> GameEventRepository:
     return container.event_repo()
 
 
+def get_matchmaking_repo() -> "MatchmakingRepository":
+    from app.infrastructure.db.matchmaking_repository import PgMatchmakingRepository
+    if _db_pool is None:
+        raise RuntimeError("Database pool not initialized")
+    return PgMatchmakingRepository(_db_pool)
+
+
 def get_uow() -> UnitOfWork:
     return container.uow()
 
 
 def get_session_store() -> SessionStore:
     return container.session_store()
+
+
+def get_session_service():
+    if _redis_client is None:
+        raise RuntimeError("Redis client not initialized")
+    return RedisSessionService(_redis_client)
 
 
 def get_event_buffer() -> EventBuffer:

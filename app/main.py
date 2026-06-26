@@ -16,6 +16,7 @@ from app.transport.http.logging_middleware import http_logging_middleware
 from app.transport.http.players import router as players_router
 from app.transport.http.root import router as root_router
 from app.transport.http.rooms import router as rooms_router
+from app.transport.http.matchmaking import router as matchmaking_router
 from app.transport.http.scores import router as scores_router
 from app.transport.http.sessions import router as sessions_router
 from app.transport.ws.handler import router as ws_router
@@ -55,6 +56,7 @@ app.include_router(sessions_router)
 app.include_router(scores_router)
 app.include_router(players_router)
 app.include_router(leaderboard_router)
+app.include_router(matchmaking_router)
 
 # Routes WebSocket
 app.include_router(ws_router)

@@ -41,3 +41,4 @@ ignore_imports =
     app.di -> app.infrastructure.db.game_repository
     app.di -> app.infrastructure.db.game_event_repository
     app.di -> app.infrastructure.db.unit_of_work
+    app.di -> app.infrastructure.db.matchmaking_repository
