@@ -49,7 +49,7 @@ async def test_broadcast_sends_to_all_clients():
 @pytest.mark.asyncio
 async def test_broadcast_to_unknown_session_is_noop():
     mgr = SessionHubManager()
-    # must not raise even if no hub exists for this session
+    # ne doit pas lever même si aucun hub n'existe pour cette session
     await mgr.broadcast_to_session("ghost", {"type": "noop"})
 
 
@@ -67,7 +67,7 @@ async def test_broadcast_to_session_routes_to_hub():
 
 @pytest.mark.asyncio
 async def test_broadcast_swallows_send_failures():
-    """A dead WS should not block the rest of the broadcast."""
+    """Un WS mort ne doit pas bloquer le reste du broadcast."""
     hub = SessionHub("sess-x")
     bad_ws = AsyncMock()
     bad_ws.send_json.side_effect = RuntimeError("connection closed")

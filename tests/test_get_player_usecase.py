@@ -11,7 +11,7 @@ class _InMemoryPlayerRepo:
     def __init__(self, *players: Player):
         self._players = {p.id: p for p in players}
 
-    async def create(self, pseudo: str) -> Player:  # pragma: no cover - not used here
+    async def create(self, pseudo: str) -> Player:  # pragma: no cover - non utilisé ici
         raise NotImplementedError
 
     async def get_by_id(self, id_: int):
@@ -30,7 +30,7 @@ def _player(id_: int, pseudo: str) -> Player:
 
 @pytest.mark.asyncio
 async def test_get_by_id_returns_player():
-    repo = _InMemoryPlayerRepo(_player(1, "ABC#HETIC"))
+    repo = _InMemoryPlayerRepo(_player(1, "ABC"))
     player = await GetPlayerUseCase(repo).execute_by_id(1)
     assert player.id == 1
 
@@ -44,15 +44,15 @@ async def test_get_by_id_missing_raises():
 
 @pytest.mark.asyncio
 async def test_get_by_pseudo_normalises_input():
-    repo = _InMemoryPlayerRepo(_player(1, "ABC#HETIC"))
-    # Raw "abc" should resolve to ABC#HETIC via the helper.
+    repo = _InMemoryPlayerRepo(_player(1, "ABC"))
+    # Le "abc" brut doit être résolu en ABC via le helper.
     player = await GetPlayerUseCase(repo).execute_by_pseudo("abc")
-    assert player.pseudo == "ABC#HETIC"
+    assert player.pseudo == "ABC"
 
 
 @pytest.mark.asyncio
 async def test_get_by_pseudo_missing_raises():
-    repo = _InMemoryPlayerRepo(_player(1, "ABC#HETIC"))
+    repo = _InMemoryPlayerRepo(_player(1, "ABC"))
     with pytest.raises(PlayerNotFoundError):
         await GetPlayerUseCase(repo).execute_by_pseudo("xyz")
 

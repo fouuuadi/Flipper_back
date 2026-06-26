@@ -6,7 +6,7 @@ from app.domain.ports.game_repository import GameRepository
 
 
 class GetLeaderboardUseCase:
-    """Return the top finished scores, optionally filtered by mode."""
+    """Renvoie les meilleurs scores terminés, filtrés optionnellement par mode."""
 
     def __init__(self, game_repository: GameRepository):
         self._repository = game_repository

@@ -38,7 +38,7 @@ class _InMemoryPlayerRepo:
 async def test_first_call_creates_player_with_default_hashtag():
     repo = _InMemoryPlayerRepo()
     player = await CreateOrGetPlayerUseCase(repo).execute("abc")
-    assert player.pseudo == "ABC#HETIC"
+    assert player.pseudo == "ABC"
     assert player.id == 1
 
 
@@ -48,8 +48,8 @@ async def test_second_call_with_same_pseudo_returns_same_player():
     usecase = CreateOrGetPlayerUseCase(repo)
 
     first = await usecase.execute("abc")
-    second = await usecase.execute("ABC")  # different case, same canonical form
-    third = await usecase.execute("abc#hetic")  # explicit default hashtag
+    second = await usecase.execute("ABC")  # casse différente, même forme canonique
+    third = await usecase.execute("abc")  # hashtag par défaut explicite
 
     assert first.id == second.id == third.id
     assert first.created_at == second.created_at == third.created_at
@@ -60,12 +60,12 @@ async def test_different_hashtags_create_distinct_players():
     repo = _InMemoryPlayerRepo()
     usecase = CreateOrGetPlayerUseCase(repo)
 
-    a = await usecase.execute("abc#alpha")
-    b = await usecase.execute("abc#beta1")
+    a = await usecase.execute("abc")
+    b = await usecase.execute("xyz")
 
     assert a.id != b.id
-    assert a.pseudo == "ABC#ALPHA"
-    assert b.pseudo == "ABC#BETA1"
+    assert a.pseudo == "ABC"
+    assert b.pseudo == "XYZ"
 
 
 @pytest.mark.asyncio
@@ -77,7 +77,7 @@ async def test_invalid_pseudo_raises():
 
 @pytest.mark.asyncio
 async def test_race_on_create_recovers_via_re_fetch():
-    """Simulate a concurrent INSERT: get_by_pseudo says no, create raises duplicate."""
+    """Simule un INSERT concurrent : get_by_pseudo dit non, create lève duplicate."""
 
     class _RaceRepo(_InMemoryPlayerRepo):
         def __init__(self):
@@ -87,11 +87,11 @@ async def test_race_on_create_recovers_via_re_fetch():
         async def get_by_pseudo(self, pseudo: str):
             if not self._race_done:
                 self._race_done = True
-                return None  # first lookup: empty
+                return None  # premier lookup : vide
             return self._by_pseudo.get(pseudo)
 
         async def create(self, pseudo: str):
-            # Race winner already inserted the player.
+            # Le gagnant de la race a déjà inséré le player.
             self._by_pseudo[pseudo] = Player(
                 id=42, pseudo=pseudo, created_at=datetime.now(timezone.utc)
             )
@@ -100,4 +100,4 @@ async def test_race_on_create_recovers_via_re_fetch():
     repo = _RaceRepo()
     player = await CreateOrGetPlayerUseCase(repo).execute("abc")
     assert player.id == 42
-    assert player.pseudo == "ABC#HETIC"
+    assert player.pseudo == "ABC"

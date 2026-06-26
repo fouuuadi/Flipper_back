@@ -5,10 +5,10 @@ from app.infrastructure.db.mappers.game_event_mapper import row_to_game_event
 
 
 class PgGameEventRepository(GameEventRepository):
-    """asyncpg-backed repository for game events.
+    """Repository des events de partie, sur asyncpg (SQL brut, pas d'ORM).
 
-    Accepts either an `asyncpg.Pool` or a single `asyncpg.Connection`
-    (when running inside a `UnitOfWork`).
+    Accepte soit un `asyncpg.Pool`, soit une `asyncpg.Connection` quand on tourne
+    dans une `UnitOfWork` (pour partager la transaction).
     """
 
     def __init__(self, executor: Executor):
@@ -38,6 +38,8 @@ class PgGameEventRepository(GameEventRepository):
 
     async def get_by_game_id(self, game_id: int, limit: int = 10) -> list[GameEvent]:
         async with acquire(self._executor) as conn:
+            # Les plus récents d'abord. Le tri secondaire sur id départage les events
+            # au même `occured_at` (fréquent : plusieurs capteurs dans la même ms).
             rows = await conn.fetch(
                 "SELECT id, game_id, type, points, occured_at FROM game_events "
                 "WHERE game_id = $1 ORDER BY occured_at DESC, id DESC LIMIT $2",

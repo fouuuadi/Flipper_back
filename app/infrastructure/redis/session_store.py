@@ -16,6 +16,13 @@ def _session_key(session_id: str) -> str:
 
 
 class RedisSessionStore(SessionStore):
+    """Stocke les sessions de jeu en cours dans Redis (un hash par session).
+
+    TTL glissant : chaque lecture ET écriture repousse l'expiration. Une session
+    activement jouée ne meurt donc jamais, mais une session laissée à l'abandon
+    (plus aucun accès) finit par expirer toute seule — pas de nettoyage manuel.
+    """
+
     def __init__(self, redis: Redis, ttl_seconds: int):
         self._redis = redis
         self._ttl = ttl_seconds
@@ -30,7 +37,7 @@ class RedisSessionStore(SessionStore):
         data = await self._redis.hgetall(key)
         if not data:
             return None
-        # Sliding TTL: refresh on every read
+        # TTL glissant : on repousse l'expiration à chaque lecture.
         await self._redis.expire(key, self._ttl)
         return self._from_hash(data)
 
@@ -58,6 +65,10 @@ class RedisSessionStore(SessionStore):
 
     @staticmethod
     def _from_hash(data: dict[str, str]) -> Session:
+        # Redis ne stocke que des chaînes : on reconstruit les types Python.
+        # Les `.get(..., défaut)` couvrent les sessions écrites par une version
+        # antérieure du schéma (champ ajouté depuis) au lieu de planter.
+        # room_code : on a stocké "" pour le solo (cf. _to_hash), on le relit en None.
         return Session(
             session_id=data["session_id"],
             pseudo=data["pseudo"],

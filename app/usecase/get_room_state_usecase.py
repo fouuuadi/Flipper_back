@@ -5,8 +5,11 @@ from app.domain.ports.room_repository import RoomRepository
 
 
 class GetRoomStateUseCase:
-    """
-    Usecase pour récupérer l'état complet d'une room
+    """Récupère l'état complet d'une room : ses parties actives + leurs derniers
+    events (flux REST legacy rooms/games).
+
+    On renvoie room + games + events en un seul appel pour qu'un client qui
+    (re)charge l'écran d'une room ait tout d'un coup, sans rappels en cascade.
     """
 
     def __init__(

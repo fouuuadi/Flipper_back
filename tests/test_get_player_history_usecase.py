@@ -36,7 +36,7 @@ class _InMemoryGameRepo:
     async def get_best_solo_score(self, player_id):
         return self._best_solo_score
 
-    # unused interface bits (kept for ABC)
+    # bouts d'interface inutilisés (gardés pour l'ABC)
     async def create(self, *args, **kwargs): ...  # pragma: no cover
     async def leaderboard(self, *args, **kwargs): ...  # pragma: no cover
     async def persist_finished_session(self, *args, **kwargs): ...  # pragma: no cover
@@ -61,7 +61,7 @@ def _game(player_id: int, mode: GameMode, score: int, id_: int = 0) -> Game:
 
 
 def _player(id_: int) -> Player:
-    return Player(id=id_, pseudo="ABC#HETIC", created_at=datetime.now(timezone.utc))
+    return Player(id=id_, pseudo="ABC", created_at=datetime.now(timezone.utc))
 
 
 @pytest.mark.asyncio
@@ -114,7 +114,7 @@ async def test_flags_best_solo_game():
     player = _player(1)
     games = [
         _game(1, GameMode.SOLO, 1200, id_=1),
-        _game(1, GameMode.SOLO, 4500, id_=2),  # best
+        _game(1, GameMode.SOLO, 4500, id_=2),  # meilleur
         _game(1, GameMode.SOLO, 800, id_=3),
     ]
     usecase = GetPlayerHistoryUseCase(
@@ -134,7 +134,7 @@ async def test_1v1_games_never_flagged_as_best():
         _game(1, GameMode.ONE_V_ONE, 5000, id_=10),
         _game(1, GameMode.ONE_V_ONE, 3000, id_=11),
     ]
-    # Even with a matching best_solo_score, 1v1 games must stay false.
+    # Même avec un best_solo_score correspondant, les parties 1v1 doivent rester false.
     usecase = GetPlayerHistoryUseCase(
         _InMemoryPlayerRepo(player), _InMemoryGameRepo(games, best_solo_score=5000)
     )

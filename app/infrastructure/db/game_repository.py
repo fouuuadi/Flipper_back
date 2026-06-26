@@ -10,6 +10,10 @@ from app.domain.ports.game_repository import GameRepository
 from app.infrastructure.db._executor import Executor, acquire
 from app.infrastructure.db.mappers.game_mapper import row_to_game
 
+# Traduction topic MQTT → type d'event persisté. Sert à rejouer le buffer Redis
+# d'une partie vers la table game_events à la fin du match. À garder synchro avec
+# les topics publiés côté capteurs : un topic absent d'ici est ignoré au flush
+# (cf. _build_event_rows), donc l'event ne sera jamais enregistré en base.
 _TOPIC_TO_EVENT_TYPE: dict[str, GameEventType] = {
     "flipper/bumper/hit": GameEventType.BUMPER_HIT,
     "flipper/bonus": GameEventType.BONUS,
@@ -24,10 +28,11 @@ _GAME_SELECT_COLS = (
 
 
 class PgGameRepository(GameRepository):
-    """asyncpg-backed repository for games.
+    """Repository des parties, sur asyncpg (SQL brut, pas d'ORM).
 
-    Accepts either an `asyncpg.Pool` or a single `asyncpg.Connection`
-    (when running inside a `UnitOfWork`).
+    Accepte soit un `asyncpg.Pool` (usage autonome), soit une `asyncpg.Connection`
+    unique quand on tourne dans une `UnitOfWork` — c'est ce qui permet de partager
+    la même transaction que les autres repos (cf. `_executor.acquire`).
     """
 
     def __init__(self, executor: Executor):
@@ -102,6 +107,9 @@ class PgGameRepository(GameRepository):
             params.append(mode.value)
             sql += f" AND g.mode = ${len(params)}"
         params.append(int(limit))
+        # Un joueur = son meilleur score (MAX), d'où le GROUP BY. Le tri secondaire
+        # sur p.id départage les ex æquo de façon stable : à scores égaux, le
+        # classement ne bouge pas d'une requête à l'autre.
         sql += (
             f" GROUP BY p.id, p.pseudo ORDER BY score DESC, p.id ASC "
             f"LIMIT ${len(params)}"
@@ -171,6 +179,12 @@ class PgGameRepository(GameRepository):
         finished_at: datetime,
         events: list[dict[str, Any]],
     ) -> tuple[int, int, int]:
+        """Écrit en base une partie terminée + ses events, en une seule transaction.
+
+        Tout est atomique : on retrouve le joueur (ou on le crée), on insère la
+        partie finie, puis ses events. Si une étape échoue, rien n'est persisté —
+        pas de partie orpheline sans events ni l'inverse.
+        """
         event_rows = self._build_event_rows(events)
         async with acquire(self._executor) as conn:
             async with conn.transaction():
@@ -183,12 +197,19 @@ class PgGameRepository(GameRepository):
 
     @staticmethod
     def _build_event_rows(events: list[dict[str, Any]]) -> list[tuple]:
+        """Transforme les events bruts du buffer Redis en tuples insérables.
+
+        Tolérant aux données imparfaites venues du réseau : un topic inconnu est
+        ignoré, des points illisibles retombent à 0, une date absente ou invalide
+        est remplacée par l'instant courant. On préfère persister une partie un peu
+        approximative que de tout perdre sur un event malformé.
+        """
         rows: list[tuple] = []
         for ev in events:
             topic = ev.get("topic")
             event_type = _TOPIC_TO_EVENT_TYPE.get(topic) if isinstance(topic, str) else None
             if event_type is None:
-                continue
+                continue  # topic non mappé → on laisse tomber cet event
             payload = ev.get("payload") or {}
             try:
                 points = int(payload.get("points", 0))
@@ -202,7 +223,8 @@ class PgGameRepository(GameRepository):
                     occured_at = datetime.utcnow()
             elif not isinstance(occured_at, datetime):
                 occured_at = datetime.utcnow()
-            # asyncpg expects naive datetimes for TIMESTAMP columns; drop the TZ.
+            # Colonnes TIMESTAMP sans fuseau : asyncpg refuse les datetimes tz-aware,
+            # on retire donc le fuseau avant insertion.
             if occured_at.tzinfo is not None:
                 occured_at = occured_at.replace(tzinfo=None)
             rows.append((event_type.value, points, occured_at))

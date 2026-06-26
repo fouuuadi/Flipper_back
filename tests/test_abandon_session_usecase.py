@@ -29,7 +29,7 @@ class _RecordingBroadcaster:
 def _session(status: SessionStatus) -> Session:
     return Session(
         session_id="sid",
-        pseudo="FOO#0001",
+        pseudo="FOO",
         score=900,
         lives=1,
         combo=0,
@@ -48,11 +48,11 @@ async def test_abandon_from_playing_transitions_to_over_and_broadcasts_match_sta
 
     persisted = await store.get("sid")
     assert persisted.status == SessionStatus.OVER
-    # Important: only match:state — NOT game:over (that's the natural one)
+    # Important : uniquement match:state — PAS game:over (c'est la fin naturelle)
     assert broadcaster.calls == [
         ("sid", {"type": "match:state", "status": "over", "sessionId": "sid"})
     ]
-    # No "game:over" message should be present.
+    # Aucun message "game:over" ne doit être présent.
     assert all(msg.get("type") != "game:over" for _, msg in broadcaster.calls)
 
 

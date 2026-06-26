@@ -78,7 +78,7 @@ async def test_noop_for_session_not_attached_to_borne():
 
     await uc.execute("some-legacy-session")
 
-    # Borne untouched, no persistence: POST /scores handles legacy sessions.
+    # Borne intacte, aucune persistance : POST /scores gère les sessions legacy.
     assert (await store.get_or_create(BORNE_ID)).nav == BorneNavState.IN_GAME
     assert persist.calls == []
     assert bus.messages == []
@@ -92,7 +92,7 @@ async def test_swallows_session_not_found():
     )
     uc, store, _ = _build(borne, persist)
 
-    # Must not raise even if the session vanished before persistence.
+    # Ne doit pas lever même si la session a disparu avant la persistance.
     await uc.execute(SESSION_ID)
 
     assert (await store.get_or_create(BORNE_ID)).nav == BorneNavState.GAME_OVER

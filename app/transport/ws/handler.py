@@ -9,6 +9,9 @@ from app.domain.ports.session_event_broadcaster import SessionEventBroadcaster
 from app.domain.ports.session_store import SessionStore
 from app.usecase.abandon_session_usecase import AbandonSessionUseCase
 from app.usecase.apply_borne_intent_usecase import ApplyBorneIntentUseCase
+from app.usecase.finish_and_persist_usecase import FinishAndPersistUseCase
+from app.usecase.finish_borne_game_from_relay_usecase import FinishBorneGameFromRelayUseCase
+from app.usecase.finish_borne_game_usecase import FinishBorneGameUseCase
 from app.usecase.pause_session_usecase import PauseSessionUseCase
 from app.usecase.resume_session_usecase import ResumeSessionUseCase
 from app.usecase.start_countdown_usecase import StartCountdownUseCase
@@ -21,6 +24,13 @@ _CMD_PAUSE = "cmd:pause"
 _CMD_RESUME = "cmd:resume"
 _CMD_ABANDON = "cmd:abandon"
 _MSG_INTENT = "intent"
+_MSG_RELAY = "borne:relay"
+
+# Events de jeu que le playfield (autorité du score) peut pousser pour qu'on les
+# rediffuse aux 3 écrans. Allowlist stricte : la nav reste arbitrée côté backend.
+_RELAYABLE_EVENT_TYPES = frozenset(
+    {"score:update", "ball:lost", "game:over", "match:state"}
+)
 
 
 @router.websocket("/ws")
@@ -34,16 +44,17 @@ async def websocket_subscribe(
     borne_hub_manager=Depends(di.get_borne_hub_manager),
     expected_borne_id: str = Depends(di.get_borne_id),
 ):
-    """Subscribe to game events.
+    """S'abonner aux events de jeu.
 
-    Pick exactly one of:
-    - `?borne_id=...` — join the permanent borne bus (the 3 screens). Receive
-      the shared navigation + match state, and send `intent` / `cmd:*` messages.
-    - `?session_id=...` — receive events for that session, and send
-      `cmd:pause` / `cmd:resume` / `cmd:abandon` to drive the session
-      lifecycle (MATCH_SYNC protocol).
-    - `?room_code=...` — receive everything broadcast for that room
-      (legacy room flow, read-only).
+    Choisir exactement l'un de :
+    - `?borne_id=...` — rejoindre le bus permanent de la borne (les 3 écrans).
+      Reçoit l'état de navigation + de match partagé, et envoie des messages
+      `intent` / `cmd:*`.
+    - `?session_id=...` — reçoit les events de cette session, et envoie
+      `cmd:pause` / `cmd:resume` / `cmd:abandon` pour piloter le cycle de vie
+      de la session (protocole MATCH_SYNC).
+    - `?room_code=...` — reçoit tout ce qui est broadcasté pour cette room
+      (ancien flow room, lecture seule).
     """
     session_id = websocket.query_params.get("session_id")
     room_code = websocket.query_params.get("room_code")
@@ -108,11 +119,30 @@ async def _serve_borne(
     )
 
     apply_intent = ApplyBorneIntentUseCase(borne_store, borne_hub_manager, session_store)
+    # Le playfield est l'autorité du score (table virtuelle) : à la fin de partie
+    # il relaie `game:over` avec le finalScore. On persiste alors le run comme
+    # une fin de partie naturelle (même chemin que le game over MQTT).
+    finish_from_relay = FinishBorneGameFromRelayUseCase(
+        borne_store=borne_store,
+        session_store=session_store,
+        finish_borne_game=FinishBorneGameUseCase(
+            borne_store=borne_store,
+            borne_id=borne_id,
+            apply_intent=apply_intent,
+            finish_and_persist=FinishAndPersistUseCase(
+                session_store=session_store,
+                event_buffer=di.get_event_buffer(),
+                game_repository=di.get_game_repo(),
+                player_repository=di.get_player_repo(),
+            ),
+        ),
+        apply_intent=apply_intent,
+    )
 
     try:
         while True:
             raw = await websocket.receive_text()
-            await _handle_borne_intent(raw, borne_id, apply_intent)
+            await _handle_borne_intent(raw, borne_id, apply_intent, borne_hub_manager, finish_from_relay)
     except WebSocketDisconnect:
         await hub.remove_client(websocket)
         logger.info("[ws] disconnected from borne %s", borne_id)
@@ -122,12 +152,16 @@ async def _handle_borne_intent(
     raw: str,
     borne_id: str,
     apply_intent: ApplyBorneIntentUseCase,
+    borne_hub_manager,
+    finish_from_relay: FinishBorneGameFromRelayUseCase,
 ) -> None:
-    """Parse a borne message and route it.
+    """Parse un message de borne et le route.
 
-    Handles `{"type": "intent", "action": ...}` (navigation) and the match
-    controls `cmd:pause` / `cmd:resume` / `cmd:abandon` (which drive the borne's
-    active session). Malformed messages are logged and dropped.
+    Gère `{"type": "intent", "action": ...}` (navigation), les contrôles de
+    match `cmd:pause` / `cmd:resume` / `cmd:abandon` (qui pilotent la session
+    active de la borne), et `{"type": "borne:relay", "event": {...}}` : le
+    playfield (autorité du score) pousse un event de jeu déjà calculé, qu'on
+    rediffuse tel quel aux 3 écrans. Les messages malformés sont loggés et ignorés.
     """
     try:
         payload = json.loads(raw)
@@ -151,6 +185,19 @@ async def _handle_borne_intent(
         await apply_intent.execute(borne_id, action, payload.get("payload"))
     elif msg_type in (_CMD_PAUSE, _CMD_RESUME, _CMD_ABANDON):
         await apply_intent.handle_match_command(borne_id, msg_type)
+    elif msg_type == _MSG_RELAY:
+        event = payload.get("event")
+        if isinstance(event, dict) and event.get("type") in _RELAYABLE_EVENT_TYPES:
+            await borne_hub_manager.broadcast_to_borne(borne_id, event)
+            # Le playfield est l'autorité du game over (table virtuelle, pas de
+            # capteur MQTT). On persiste alors le run et on bascule la nav borne
+            # en `game_over` ; sinon le score n'arrive pas en base / au leaderboard
+            # et les intents REPLAY / BACK_TO_MENU (valides seulement depuis cet
+            # état) restent ignorés → boutons de fin de partie morts.
+            if event.get("type") == "game:over":
+                await finish_from_relay.execute(borne_id, event.get("finalScore"))
+        else:
+            logger.warning("[ws] borne %s sent invalid relay payload: %r", borne_id, payload)
     else:
         logger.warning("[ws] borne %s sent unknown message type %r", borne_id, msg_type)
 
@@ -187,8 +234,8 @@ async def _handle_session_command(
     session_store: SessionStore,
     broadcaster: SessionEventBroadcaster,
 ) -> None:
-    """Parse a `cmd:*` JSON payload from the client and route it to the
-    matching use case. Malformed messages are logged and dropped silently.
+    """Parse un payload JSON `cmd:*` du client et le route vers le use case
+    correspondant. Les messages malformés sont loggés et ignorés silencieusement.
     """
     try:
         payload = json.loads(raw)

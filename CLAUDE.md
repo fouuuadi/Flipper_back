@@ -8,7 +8,7 @@
 
 ## ⚠️ CONTEXTE DE MIGRATION EN COURS
 
-Ce projet existe déjà avec une base solide (Clean Archi, 70+ tests, CI/CD, Docker).
+Ce projet existe déjà avec une base solide (Clean Archi, 341 tests, CI/CD, Docker).
 On migre vers une **nouvelle archi** (Redis sessions, MQTT IoT, écriture DB en fin de partie uniquement).
 
 **Règle absolue** : avant de coder quoi que ce soit, identifie ce qui existe déjà et ce qu'on peut réutiliser.
@@ -53,15 +53,16 @@ On migre vers une **nouvelle archi** (Redis sessions, MQTT IoT, écriture DB en 
 ```
 app/
 ├── config.py                          # ✅ Settings pydantic-settings (ADAPTER pour PG + Redis + MQTT + log_level)
-├── di.py                              # ✅ Composition root (ADAPTER pour nouveaux repos + services)
-├── main.py                            # ✅ Entry FastAPI + lifespan (configure_logging + middleware HTTP)
+├── di.py                              # ✅ Composition root — classe Container (état infra encapsulé) + providers get_*
+├── bootstrap.py                       # 🆕 Câblage runtime (use cases + routage MQTT), extrait du lifespan
+├── main.py                            # ✅ Entry FastAPI : crée l'app, monte les routes, lifespan délègue à bootstrap
 ├── logging_config.py                  # 🆕 JsonFormatter + configure_logging (stdlib only)
 ├── domain/                            # ✅ GARDER — couche métier pure
 │   ├── player.py, room.py, game.py    # ✅ Entités Pydantic existantes
 │   ├── game_event.py, match.py        # ✅ Garder
 │   ├── session.py                     # 🆕 Entité Session (éphémère, pas en DB)
 │   ├── leaderboard_entry.py           # 🆕 Entité projection (rank, player_id, pseudo, score)
-│   ├── pseudo.py                      # 🆕 Helper format pseudo XXX#YYYYY + DEFAULT_HASHTAG=HETIC
+│   ├── pseudo.py                      # 🆕 Helper format pseudo : exactement 3 caractères alphanumériques (style arcade)
 │   ├── exceptions.py                  # ✅ DomainError + InvalidPseudoError + filles
 │   └── ports/                         # ✅ Interfaces ABC existantes
 │       ├── player_repository.py       # ✅ Garder
@@ -120,7 +121,7 @@ app/
     │   └── schemas/                   # ✅ (étendre)
     └── ws/
         └── handler.py                 # ✅ WS par session_id, parse cmd:pause/resume/abandon (MATCH_SYNC)
-tests/                                 # ✅ 70+ tests existants — NE RIEN CASSER, ajouter
+tests/                                 # ✅ 341 tests existants — NE RIEN CASSER, ajouter
 db/init/                               # 🔄 Adapter pour PostgreSQL
 ```
 
@@ -133,7 +134,7 @@ db/init/                               # 🔄 Adapter pour PostgreSQL
 ```
 POST /sessions
   ← { pseudo: "ABC" }
-  → Générer pseudo formaté ABC#4521
+  → Normaliser le pseudo : 3 caractères alphanumériques en majuscules (ex. "ABC")
   → Créer session Redis : { sessionId, pseudo, score: 0, status: "waiting" }
   → Répondre { sessionId, pseudo }
   ⚠️ PAS d'écriture en DB ici
@@ -324,7 +325,7 @@ APP_PORT=8000
 - [x] DTO schemas request/response
 - [x] pydantic-settings config
 - [x] WebSocket broadcast par room (room_hub.py)
-- [x] 70+ tests (pytest)
+- [x] 341 tests (pytest)
 - [x] CI/CD GitHub Actions → GHCR
 - [x] Docker Compose (PostgreSQL 16 + Adminer + Redis + Mosquitto + backend)
 - [x] ruff + import-linter (4 contracts)
@@ -335,7 +336,7 @@ APP_PORT=8000
 - [x] SessionEventBroadcaster port + SessionHubManager
 - [x] POST /scores (flush final + EventBuffer + atomic transaction)
 - [x] `/players`, `/leaderboard`, `/players/{id}/games` (CRUD + leaderboard + history)
-- [x] Format pseudo unifié + DEFAULT_HASHTAG=HETIC + best-score-wins solo
+- [x] Format pseudo unifié (3 caractères alphanumériques) + best-score-wins solo
 - [x] Structured JSON logging + HTTP middleware
 - [x] Migration PostgreSQL (asyncpg + SQL brut)
 - [x] Unit of Work (#68) — `UnitOfWork` port + `PgUnitOfWork` + repos `Pool|Connection` + `StartGameUseCase` refactor

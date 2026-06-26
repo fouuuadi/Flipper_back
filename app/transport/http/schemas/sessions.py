@@ -4,8 +4,9 @@ from pydantic import BaseModel, Field
 
 from app.domain.game import GameMode
 
-# Accept 3 alphanum, optionally followed by "#" + exactly 5 alphanum.
-# Normalisation (uppercase + default HETIC) happens in the use case.
+# Accepte 3 caractères alphanum, éventuellement suivis de "#" + exactement
+# 5 alphanum. La normalisation (uppercase + HETIC par défaut) se fait dans le
+# use case.
 PSEUDO_INPUT_PATTERN = r"^[A-Za-z0-9]{3}(#[A-Za-z0-9]{5})?$"
 
 

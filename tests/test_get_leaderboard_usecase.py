@@ -25,8 +25,8 @@ async def test_passes_arguments_to_repository():
 @pytest.mark.asyncio
 async def test_returns_repository_payload_verbatim():
     payload = [
-        LeaderboardEntry(rank=1, player_id=10, pseudo="ABC#HETIC", score=4000),
-        LeaderboardEntry(rank=2, player_id=11, pseudo="XYZ#ALPHA", score=2000),
+        LeaderboardEntry(rank=1, player_id=10, pseudo="ABC", score=4000),
+        LeaderboardEntry(rank=2, player_id=11, pseudo="XYZ", score=2000),
     ]
     repo = _RecordingRepo(payload)
 

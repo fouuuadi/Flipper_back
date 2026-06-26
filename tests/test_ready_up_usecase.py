@@ -36,7 +36,7 @@ class _RecordingBroadcaster:
 def _make_session(**overrides) -> Session:
     base = {
         "session_id": "abc123",
-        "pseudo": "FOO#0001",
+        "pseudo": "FOO",
         "score": 0,
         "status": SessionStatus.WAITING,
         "room_code": None,
@@ -96,7 +96,7 @@ async def test_ready_up_triggers_on_ready_callback_in_background():
 
     await ReadyUpUseCase(store, broadcaster, on_ready=callback).execute(session.session_id)
 
-    # The callback runs in a background task — give the event loop a tick.
+    # Le callback tourne dans une tâche de fond — on laisse un tick à l'event loop.
     await asyncio.wait_for(done.wait(), timeout=1.0)
     assert invocations == [session.session_id]
 

@@ -18,6 +18,7 @@ REQUIRED_ENV = {
     "MQTT_BROKER_HOST": "mqtt",
     "MQTT_BROKER_PORT": "1883",
     "MQTT_TOPIC_FILTER": "flipper/#",
+    "MQTT_BORNE_INPUT_TOPIC_FILTER": "pinball/+/input/#",
     "BORNE_ID": "flipper-cabinet-1",
     "LOG_LEVEL": "INFO",
 }
@@ -51,6 +52,7 @@ def test_loads_all_values_from_env(full_env):
     assert settings.mqtt_broker_host == "mqtt"
     assert settings.mqtt_broker_port == 1883
     assert settings.mqtt_topic_filter == "flipper/#"
+    assert settings.mqtt_borne_input_topic_filter == "pinball/+/input/#"
     assert settings.borne_id == "flipper-cabinet-1"
     assert settings.log_level == "INFO"
 

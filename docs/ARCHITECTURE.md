@@ -52,7 +52,7 @@ Aucune dépendance externe (ni framework, ni driver). Contient deux choses :
 | Élément | Fichiers | Rôle |
 |---|---|---|
 | **Entités** | `player.py`, `room.py`, `game.py`, `game_event.py`, `match.py`, `session.py`, `leaderboard_entry.py` | Objets métier Pydantic v2 |
-| **Helpers métier** | `pseudo.py` (format `XXX#YYYYY`, `DEFAULT_HASHTAG="HETIC"`), `exceptions.py` (`DomainError` + filles) | Logique pure |
+| **Helpers métier** | `pseudo.py` (exactement 3 caractères alphanumériques, normalisés en majuscules, style initiales d'arcade), `exceptions.py` (`DomainError` + filles) | Logique pure |
 | **Ports** (`domain/ports/`) | `*_repository.py`, `session_store.py`, `event_buffer.py`, `mqtt_gateway.py`, `session_event_broadcaster.py`, `unit_of_work.py` | Interfaces ABC — *contrats* que l'infra doit remplir |
 
 > Les **ports** sont la clé de l'inversion de dépendance (cf. §3). Ils vivent dans
@@ -68,7 +68,7 @@ Implémente les ports du domaine avec des technos réelles. Une sous-couche par 
 | `db/` | `postgres.py` (pool asyncpg), `Pg*Repository`, `unit_of_work.py`, `mappers/` (row → entity) | `*Repository`, `UnitOfWork` |
 | `redis/` | `client.py`, `session_store.py`, `event_buffer.py` | `SessionStore`, `EventBuffer` |
 | `mqtt/` | `aio_mqtt_gateway.py` (client aiomqtt + consumer task) | `MqttGateway` |
-| `ws/` | `room_hub.py` (legacy room-scoped), `session_hub.py` (session-scoped) | `SessionEventBroadcaster` |
+| `ws/` | `room_hub.py` (legacy room-scoped), `session_hub.py` (session-scoped), `borne_hub.py` (canal borne permanent, les 3 écrans), `composite_broadcaster.py` (fan-out multi-hubs) | `SessionEventBroadcaster`, `BorneEventBroadcaster` |
 
 Détail important : les `Pg*Repository` acceptent **soit un `Pool`** (usage standalone),
 **soit une `Connection`** (quand ils tournent sous une `UnitOfWork`, pour partager une
@@ -96,7 +96,7 @@ on mappe la sortie vers un DTO de réponse.
 | Sous-dossier | Contenu |
 |---|---|
 | `http/` | Routers FastAPI (`sessions.py`, `scores.py`, `players.py`, `leaderboard.py`, `rooms.py`, `games.py`, `health.py`, `root.py`), `schemas/` (requêtes/réponses Pydantic), `dtos.py`, `error_handler.py` (mappe `DomainError` → HTTP), `logging_middleware.py` |
-| `ws/` | `handler.py` (`/ws?session_id=` XOR `?room_code=`), `hub.py` |
+| `ws/` | `handler.py` (`/ws?session_id=` XOR `?room_code=` XOR `?borne_id=`), `hub.py` |
 
 ---
 
@@ -203,8 +203,11 @@ quand tu construis une feature (c'est l'ordre que suit l'agent `backend-builder`
 ```bash
 ruff check .          # lint
 lint-imports          # les 4 contracts Clean Archi
-pytest tests/ -v      # 70+ tests (unit + intégration)
+pytest tests/ -v      # 265 tests (unit + intégration), cf. TESTING.md
 ```
 
 Les trois doivent passer avant toute PR. La CI (`.github/workflows/ci.yml`) les rejoue,
 avec les services `postgres:16-alpine`, `redis` et `mosquitto` pour les tests d'intégration.
+
+> Détail de la stratégie de test (pyramide unit/intégration, fakes, fixtures, couverture) :
+> voir [`TESTING.md`](./TESTING.md).

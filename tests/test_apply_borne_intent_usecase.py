@@ -83,7 +83,7 @@ def _usecase(borne: Borne | None = None, sessions: FakeSessionStore | None = Non
 def _playing_session(session_id: str = "sess-1") -> Session:
     return Session(
         session_id=session_id,
-        pseudo="ABC#HETIC",
+        pseudo="ABC",
         status=SessionStatus.PLAYING,
         created_at=datetime.now(timezone.utc),
     )
@@ -258,6 +258,9 @@ async def test_command_without_active_session_is_noop():
         (BorneNavState.MENU, "OPEN_LEADERBOARD", BorneNavState.LEADERBOARD),
         (BorneNavState.MENU, "OPEN_SETTINGS", BorneNavState.SETTINGS),
         (BorneNavState.IDENTIFICATION, "BACK_TO_MENU", BorneNavState.MENU),
+        (BorneNavState.GAME_OVER, "REPLAY", BorneNavState.IDENTIFICATION),
+        (BorneNavState.GAME_OVER, "OPEN_LEADERBOARD", BorneNavState.LEADERBOARD),
+        (BorneNavState.GAME_OVER, "BACK_TO_MENU", BorneNavState.MENU),
         (BorneNavState.SPLASH, "BACK_TO_MENU", None),
         (BorneNavState.MENU, "NOPE", None),
     ],

@@ -8,16 +8,19 @@ from app.infrastructure.db.mappers.room_mapper import row_to_room
 
 
 class PgRoomRepository(RoomRepository):
-    """asyncpg-backed repository for rooms.
+    """Repository des rooms, sur asyncpg (SQL brut, pas d'ORM).
 
-    Accepts either an `asyncpg.Pool` or a single `asyncpg.Connection`
-    (when running inside a `UnitOfWork`).
+    Accepte soit un `asyncpg.Pool`, soit une `asyncpg.Connection` quand on tourne
+    dans une `UnitOfWork` (pour partager la transaction).
     """
 
     def __init__(self, executor: Executor):
         self._executor = executor
 
     async def create(self, mode: GameMode) -> Room:
+        # Code court et lisible (6 caractères hexa en majuscules) tiré d'un UUID v4.
+        # La colonne `code` est UNIQUE en base : une collision (très improbable sur
+        # 6 hexa) ferait remonter une erreur d'insertion plutôt qu'un doublon muet.
         code = uuid.uuid4().hex[:6].upper()
         async with acquire(self._executor) as conn:
             row = await conn.fetchrow(

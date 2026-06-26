@@ -32,7 +32,7 @@ class _RecordingBroadcaster:
 def _session(status: SessionStatus = SessionStatus.PLAYING) -> Session:
     return Session(
         session_id="sid",
-        pseudo="FOO#0001",
+        pseudo="FOO",
         score=1200,
         lives=2,
         combo=3,
@@ -51,7 +51,7 @@ async def test_pause_transitions_playing_to_paused_and_broadcasts():
 
     persisted = await store.get("sid")
     assert persisted.status == SessionStatus.PAUSED
-    # Score/lives/combo preserved
+    # Score/vies/combo préservés
     assert persisted.score == 1200
     assert persisted.lives == 2
     assert persisted.combo == 3
@@ -84,7 +84,7 @@ async def test_pause_ignored_when_already_paused():
 
 @pytest.mark.asyncio
 async def test_pause_unknown_session_is_dropped():
-    store = _InMemorySessionStore()  # empty
+    store = _InMemorySessionStore()  # vide
     broadcaster = _RecordingBroadcaster()
 
     await PauseSessionUseCase(store, broadcaster).execute("ghost")

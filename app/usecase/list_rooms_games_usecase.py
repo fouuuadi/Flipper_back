@@ -1,3 +1,8 @@
+"""Listing des rooms et des games (flux REST legacy rooms/games).
+
+Deux use cases jumeaux : lister par statut, ou tout agréger si aucun filtre.
+"""
+
 from app.domain.game import GameStatus
 from app.domain.ports.game_repository import GameRepository
 from app.domain.ports.room_repository import RoomRepository
@@ -16,6 +21,10 @@ class ListRoomsUseCase:
             room_status = RoomStatus(status.lower())
             rooms = await self.room_repo.get_by_status(room_status)
         else:
+
+            # Sans filtre : on agrège tous les statuts. Une requête par statut, faute
+            # de get_all() dédié — acceptable vu le faible nombre de rooms attendu.
+
             rooms = []
             for status_value in RoomStatus:
                 rooms.extend(await self.room_repo.get_by_status(status_value))

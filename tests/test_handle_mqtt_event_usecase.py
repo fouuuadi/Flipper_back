@@ -47,7 +47,7 @@ class _InMemoryEventBuffer:
 def _session(session_id: str = "abc", score: int = 0, lives: int = 3, combo: int = 0) -> Session:
     return Session(
         session_id=session_id,
-        pseudo="FOO#0001",
+        pseudo="FOO",
         score=score,
         lives=lives,
         combo=combo,
@@ -96,7 +96,7 @@ async def test_bonus_adds_points_without_touching_combo():
 
     persisted = await store.get("abc")
     assert persisted.score == 300
-    assert persisted.combo == 5  # bonuses don't bump combo
+    assert persisted.combo == 5  # les bonus n'incrémentent pas le combo
     assert broadcaster.calls[-1][1]["score"] == 300
     assert broadcaster.calls[-1][1]["bonusType"] == "skill_shot"
 
@@ -144,7 +144,7 @@ async def test_game_over_sets_status_and_broadcasts_final_score_and_match_state(
 
     persisted = await store.get("abc")
     assert persisted.status == SessionStatus.OVER
-    # Two messages: score-final notification + lifecycle transition.
+    # Deux messages : notification du score final + transition de cycle de vie.
     assert broadcaster.calls == [
         ("abc", {"type": "game:over", "finalScore": 4200}),
         ("abc", {"type": "match:state", "status": "over", "sessionId": "abc"}),
@@ -199,7 +199,7 @@ async def test_score_event_dropped_when_session_not_playing():
     )
 
     persisted = await store.get("abc")
-    assert persisted.score == 100  # unchanged
+    assert persisted.score == 100  # inchangé
     assert broadcaster.calls == []
     assert await buffer.read_all("abc") == []
 
@@ -234,7 +234,7 @@ async def test_unknown_topic_is_ignored():
     )
 
     persisted = await store.get("abc")
-    assert persisted.score == 100  # untouched
+    assert persisted.score == 100  # intact
     assert broadcaster.calls == []
 
 
@@ -252,7 +252,7 @@ async def test_missing_session_id_is_dropped():
 
 @pytest.mark.asyncio
 async def test_unknown_session_is_dropped():
-    store = _InMemorySessionStore()  # empty
+    store = _InMemorySessionStore()  # vide
     broadcaster = _RecordingBroadcaster()
 
     await HandleMqttEventUseCase(store, broadcaster, _InMemoryEventBuffer()).execute(
@@ -295,11 +295,11 @@ async def test_dropped_events_are_not_pushed_to_buffer():
     store = _InMemorySessionStore(_session())
     buffer = _InMemoryEventBuffer()
 
-    # missing sessionId → drop
+    # sessionId manquant → drop
     await HandleMqttEventUseCase(store, _RecordingBroadcaster(), buffer).execute(
         MqttEvent(topic="flipper/bumper/hit", payload={"points": 10})
     )
-    # unknown topic → drop
+    # topic inconnu → drop
     await HandleMqttEventUseCase(store, _RecordingBroadcaster(), buffer).execute(
         MqttEvent(topic="flipper/garbage", payload={"sessionId": "abc"})
     )

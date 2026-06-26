@@ -7,10 +7,10 @@ from pydantic import BaseModel
 
 
 class MqttEvent(BaseModel):
-    """Raw event received from the MQTT broker.
+    """Event brut reçu du broker MQTT.
 
-    The infrastructure layer parses the JSON payload before constructing this
-    object — use cases receive a `dict`, not raw bytes.
+    La couche infrastructure parse le payload JSON avant de construire cet
+    objet — les use cases reçoivent un `dict`, pas des bytes bruts.
     """
 
     topic: str
@@ -23,18 +23,18 @@ class MqttEventHandler(Protocol):
 
 
 class MqttGateway(ABC):
-    """Bridge to an MQTT broker.
+    """Pont vers un broker MQTT.
 
-    Concrete implementations open a connection, subscribe to a topic filter,
-    and dispatch every incoming message (with a JSON payload) to the handler
-    passed at construction time. The consumer loop runs in a background task
-    owned by the gateway.
+    Les implémentations concrètes ouvrent une connexion, s'abonnent à un filtre
+    de topic, et dispatchent chaque message entrant (au payload JSON) vers le
+    handler passé à la construction. La boucle de consommation tourne dans une
+    background task détenue par la gateway.
     """
 
     @abstractmethod
     async def start(self) -> None:
-        """Open the broker connection, subscribe, and start the consumer task."""
+        """Ouvre la connexion au broker, s'abonne, et démarre la consumer task."""
 
     @abstractmethod
     async def stop(self) -> None:
-        """Cancel the consumer task and disconnect."""
+        """Annule la consumer task et se déconnecte."""

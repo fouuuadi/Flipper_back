@@ -100,6 +100,7 @@ jobs:
           MQTT_BROKER_HOST: 127.0.0.1
           MQTT_BROKER_PORT: 1883
           MQTT_TOPIC_FILTER: "flipper/#"
+          MQTT_BORNE_INPUT_TOPIC_FILTER: "pinball/+/input/#"
           BORNE_ID: borne-ci
           LOG_LEVEL: INFO
         run: pytest tests/ -v

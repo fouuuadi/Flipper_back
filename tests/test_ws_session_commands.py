@@ -1,8 +1,8 @@
-"""Unit tests for the WS session command router (`_handle_session_command`).
+"""Tests unitaires du routeur de commandes de session WS (`_handle_session_command`).
 
-The function lives in `app/transport/ws/handler.py` and routes JSON
-`cmd:*` payloads received over the WebSocket to the right use case.
-Tests cover routing, malformed input, and pass-through of unknown types.
+La fonction se trouve dans `app/transport/ws/handler.py` et route les payloads
+JSON `cmd:*` reçus sur le WebSocket vers le bon use case. Les tests couvrent le
+routage, les entrées malformées et le pass-through des types inconnus.
 """
 import asyncio
 from datetime import datetime, timezone
@@ -14,8 +14,9 @@ from app.transport.ws.handler import _handle_session_command
 
 
 async def _cancel_pending_tasks() -> None:
-    """`cmd:resume` launches a real-time countdown via `asyncio.create_task`.
-    Cancel any leftover background task so it doesn't bleed into other tests.
+    """`cmd:resume` lance un compte à rebours temps réel via `asyncio.create_task`.
+    Annule toute tâche de fond résiduelle pour qu'elle ne déborde pas sur les
+    autres tests.
     """
     pending = [
         t
@@ -51,7 +52,7 @@ class _RecordingBroadcaster:
 def _session(status: SessionStatus) -> Session:
     return Session(
         session_id="sid",
-        pseudo="FOO#0001",
+        pseudo="FOO",
         score=100,
         lives=2,
         combo=1,
@@ -85,10 +86,10 @@ async def test_cmd_resume_routes_to_resume_use_case_and_triggers_countdown():
         '{"type":"cmd:resume"}', "sid", store, broadcaster
     )
 
-    # `cmd:resume` flips the session to READY immediately and broadcasts
-    # match:state: ready. The READY → PLAYING transition is the countdown's
-    # job and runs in a background task (covered by
-    # tests/test_resume_session_usecase.py with a mocked sleep).
+    # `cmd:resume` bascule la session en READY immédiatement et broadcast
+    # match:state: ready. La transition READY → PLAYING est le rôle du compte
+    # à rebours et tourne dans une tâche de fond (couverte par
+    # tests/test_resume_session_usecase.py avec un sleep mocké).
     assert (await store.get("sid")).status == SessionStatus.READY
     assert broadcaster.calls == [
         ("sid", {"type": "match:state", "status": "ready", "sessionId": "sid"})
